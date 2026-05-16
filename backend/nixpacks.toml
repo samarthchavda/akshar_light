@@ -5,4 +5,4 @@ nixPkgs = ["python311", "cairo", "pango", "gdk-pixbuf", "libffi", "gobject-intro
 cmds = ["pip install --upgrade pip", "pip install -r requirements.txt"]
 
 [start]
-cmd = "cd app && uvicorn main:app --host 0.0.0.0 --port $PORT"
+cmd = "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
