@@ -10,3 +10,5 @@ services:
         value: mongodb+srv://StudyPoint:Cb3oog9A97jZO6cH@cluster0.whyvvvy.mongodb.net/akshar_light?retryWrites=true&w=majority&appName=Cluster0
       - key: PYTHON_VERSION
         value: 3.11.0
+      - key: PORT
+        value: 10000
