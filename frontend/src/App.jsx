@@ -1,5 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+
 const USERS_KEY = 'akhar_users';
 const INVOICES_KEY = (user) => `akhar_invoices_${user}`;
   const LETTERS_KEY = (user) => `akhar_letters_${user}`;
@@ -74,7 +76,7 @@ function saveInvoices(user, invoices) {
 }
 
 async function fetchHtml(payload) {
-  const response = await fetch('/api/invoice/html', {
+  const response = await fetch(`${API_BASE_URL}/api/invoice/html`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -87,7 +89,7 @@ async function fetchHtml(payload) {
 }
 
 async function fetchTemplateHtmlById(templateId, context) {
-  const response = await fetch('/api/template/render', {
+  const response = await fetch(`${API_BASE_URL}/api/template/render`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ template_id: templateId, context }),
@@ -108,7 +110,7 @@ function calculateTotals(form) {
 }
 
 async function fetchPdf(payload) {
-  const response = await fetch('/api/invoice/pdf', {
+  const response = await fetch(`${API_BASE_URL}/api/invoice/pdf`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -225,7 +227,7 @@ function saveLetters(user, letters) {
         lines: (invoice.notes || '').split('\n'),
         thanks_text: 'આભાર\nસંજય ચવડા',
       };
-      const res = await fetch('/api/template/pdf', {
+      const res = await fetch(`${API_BASE_URL}/api/template/pdf`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ template_id: 'letter_pad', context }),

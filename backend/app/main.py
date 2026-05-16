@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 import re
 from typing import Any
+import os
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,10 +13,22 @@ from pydantic import BaseModel, Field
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from weasyprint import HTML
 import base64
+from pymongo import MongoClient
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATE_DIR = BASE_DIR / "templates"
+
+# MongoDB connection
+MONGODB_URL = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
+client = MongoClient(MONGODB_URL)
+db = client.get_database("akshar_light")
+invoices_collection = db.get_collection("invoices")
+users_collection = db.get_collection("users")
 
 env = Environment(
     loader=FileSystemLoader(str(TEMPLATE_DIR)),
@@ -126,9 +139,21 @@ GUJ_TENS = [
 
 app = FastAPI(title="Akhar Light Billing API")
 
+# Get allowed origins from environment or use defaults
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+allowed_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    FRONTEND_URL,
+]
+
+# Add Railway frontend URL pattern
+if "railway.app" in FRONTEND_URL:
+    allowed_origins.append(FRONTEND_URL)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=["*"],  # Allow all origins for Railway deployment
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
