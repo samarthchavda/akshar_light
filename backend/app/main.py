@@ -4,17 +4,19 @@ from pathlib import Path
 import re
 from typing import Any
 import os
+from datetime import datetime
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, Response
 from fastapi import Body
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from weasyprint import HTML
 import base64
 from pymongo import MongoClient
 from dotenv import load_dotenv
+import hashlib
 
 # Load environment variables
 load_dotenv()
@@ -62,6 +64,27 @@ class InvoiceRequest(BaseModel):
 class TemplateRenderRequest(BaseModel):
     template_id: str = Field(...)
     context: dict = Field(default_factory=dict)
+
+
+class UserSignup(BaseModel):
+    name: str
+    email: EmailStr
+    password: str
+
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class InvoiceSave(BaseModel):
+    user_email: str
+    invoice_data: dict
+
+
+class LetterSave(BaseModel):
+    user_email: str
+    letter_data: dict
 
 
 ONES = [
@@ -158,6 +181,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def hash_password(password: str) -> str:
+    """Hash password using SHA256"""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+
+def verify_password(password: str, hashed: str) -> bool:
+    """Verify password against hash"""
+    return hash_password(password) == hashed
 
 
 def compute_items(payload: InvoiceRequest) -> tuple[list[dict[str, Any]], float]:
@@ -436,3 +469,132 @@ def template_pdf(req: TemplateRenderRequest = Body(...)) -> Response:
         headers={"Content-Disposition": f'inline; filename="{filename}"'},
     )
 
+
+
+# ==================== Authentication Endpoints ====================
+
+@app.post("/api/auth/signup")
+def signup(user: UserSignup):
+    """User signup - create new account"""
+    try:
+        # Check if user already exists
+        existing_user = users_collection.find_one({"email": user.email})
+        if existing_user:
+            raise HTTPException(status_code=400, detail="Email already exists")
+        
+        # Create new user
+        user_doc = {
+            "name": user.name,
+            "email": user.email,
+            "password": hash_password(user.password),
+            "created_at": datetime.utcnow(),
+        }
+        result = users_collection.insert_one(user_doc)
+        
+        return {
+            "success": True,
+            "message": "Account created successfully",
+            "user": {
+                "email": user.email,
+                "name": user.name,
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Signup failed: {exc}") from exc
+
+
+@app.post("/api/auth/login")
+def login(credentials: UserLogin):
+    """User login - verify credentials"""
+    try:
+        # Find user
+        user = users_collection.find_one({"email": credentials.email})
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        
+        # Verify password
+        if not verify_password(credentials.password, user["password"]):
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        
+        return {
+            "success": True,
+            "message": "Login successful",
+            "user": {
+                "email": user["email"],
+                "name": user["name"],
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Login failed: {exc}") from exc
+
+
+# ==================== Invoice & Letter Management ====================
+
+@app.post("/api/invoices/save")
+def save_invoice(data: InvoiceSave):
+    """Save invoice to database"""
+    try:
+        invoice_doc = {
+            "user_email": data.user_email,
+            "invoice_data": data.invoice_data,
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow(),
+        }
+        
+        # Check if invoice already exists (by invoice ID)
+        invoice_id = data.invoice_data.get("id")
+        if invoice_id:
+            existing = invoices_collection.find_one({
+                "user_email": data.user_email,
+                "invoice_data.id": invoice_id
+            })
+            if existing:
+                # Update existing invoice
+                invoices_collection.update_one(
+                    {"_id": existing["_id"]},
+                    {"$set": {"invoice_data": data.invoice_data, "updated_at": datetime.utcnow()}}
+                )
+                return {"success": True, "message": "Invoice updated"}
+        
+        # Insert new invoice
+        invoices_collection.insert_one(invoice_doc)
+        return {"success": True, "message": "Invoice saved"}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Save failed: {exc}") from exc
+
+
+@app.get("/api/invoices/{user_email}")
+def get_invoices(user_email: str):
+    """Get all invoices for a user"""
+    try:
+        invoices = list(invoices_collection.find(
+            {"user_email": user_email},
+            {"_id": 0, "invoice_data": 1}
+        ))
+        return {
+            "success": True,
+            "invoices": [inv["invoice_data"] for inv in invoices]
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Fetch failed: {exc}") from exc
+
+
+@app.delete("/api/invoices/{user_email}/{invoice_id}")
+def delete_invoice(user_email: str, invoice_id: int):
+    """Delete an invoice"""
+    try:
+        result = invoices_collection.delete_one({
+            "user_email": user_email,
+            "invoice_data.id": invoice_id
+        })
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="Invoice not found")
+        return {"success": True, "message": "Invoice deleted"}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Delete failed: {exc}") from exc
