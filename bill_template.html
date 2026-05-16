@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<style>
+		@font-face {
+			font-family: 'NotoSansGujaratiLocal';
+			src: local('Noto Sans Gujarati'), url('/fonts/NotoSansGujarati-Regular.ttf') format('truetype');
+		}
+		:root { --tool-bg: #fff; }
+		.toolbar { position: fixed; top: 12px; right: 12px; background: var(--tool-bg); padding: 8px; border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,0.2); z-index: 9999; }
+		.toolbar button { margin-left: 6px; padding:6px 10px; border:1px solid #ddd; background:#fafafa; cursor:pointer; border-radius:4px }
+	</style>
+	<title>Electric Bill Template</title>
+	<style>
+	<div class="toolbar" aria-hidden="false">
+		<button id="toggle-edit">Edit</button>
+		<button id="print">Print / Save PDF</button>
+	</div>
+		:root {
+			--paper: #f5f0e6;
+			--ink: #a33d3a;
+			--ink-soft: rgba(163, 61, 58, 0.65);
+			--line: rgba(163, 61, 58, 0.42);
+			--line-strong: rgba(163, 61, 58, 0.7);
+		}
+
+		* {
+			box-sizing: border-box;
+		}
+
+		html, body {
+			margin: 0;
+			padding: 0;
+			background: #1f1b16;
+			font-family: Georgia, "Times New Roman", serif;
+			color: var(--ink);
+		}
+
+		.sheet {
+			font-variant-numeric: lining-nums tabular-nums;
+			font-feature-settings: "lnum" 1, "tnum" 1;
+		}
+
+		body {
+			min-height: 100vh;
+			display: grid;
+			place-items: center;
+			padding: 24px;
+		}
+
+		.sheet {
+			width: min(210mm, 100%);
+			aspect-ratio: 210 / 297;
+			background: linear-gradient(180deg, #f5efe4 0%, #f2ecdf 100%);
+			border-radius: 2px;
+			box-shadow: 0 18px 55px rgba(0, 0, 0, 0.35);
+			padding: 14mm 12mm 10mm;
+			position: relative;
+			overflow: hidden;
+		}
+
+		.logo-row {
+			display: flex;
+			align-items: flex-start;
+			gap: 12px;
+			margin-bottom: 4px;
+		}
+
+		.logo-mark {
+			width: 30px;
+			height: 30px;
+			border: 3px solid var(--ink);
+			border-radius: 50%;
+			display: grid;
+			place-items: center;
+			font-size: 16px;
+			font-weight: 700;
+			line-height: 1;
+			flex: none;
+		}
+
+		.title {
+			margin: 0;
+			text-align: center;
+			font-size: clamp(26px, 3vw, 38px);
+			letter-spacing: 0.6px;
+			font-weight: 700;
+			text-transform: uppercase;
+			line-height: 1.05;
+			width: 100%;
+			text-shadow: 0 0 0 var(--ink);
+		}
+
+		.subtitle {
+			margin: 2px 0 6px;
+			text-align: center;
+			font-size: clamp(19px, 2.3vw, 28px);
+			font-weight: 700;
+			text-transform: uppercase;
+			letter-spacing: 0.4px;
+		}
+
+		.address {
+			text-align: center;
+			font-size: 13px;
+			line-height: 1.3;
+			margin-bottom: 12px;
+			font-weight: 600;
+		}
+
+		.header-grid {
+			display: grid;
+			grid-template-columns: 1.45fr 1fr;
+			gap: 12px;
+			align-items: start;
+			margin-bottom: 12px;
+		}
+
+		.field-line {
+			display: flex;
+			align-items: center;
+			gap: 10px;
+			margin: 6px 0;
+			font-size: 17px;
+			font-weight: 700;
+		}
+
+		.field-line .label {
+			width: 62px;
+			flex: none;
+		}
+
+		.field-line .value {
+			flex: 1;
+			border-bottom: 2px dotted var(--line-strong);
+			height: 22px;
+		}
+
+		.right-meta {
+			padding-top: 2px;
+			font-size: 16px;
+			font-weight: 700;
+			line-height: 1.45;
+			text-align: left;
+		}
+
+		.right-meta div {
+			min-height: 24px;
+		}
+
+		.invoice-table {
+			width: 100%;
+			border-collapse: collapse;
+			table-layout: fixed;
+			border: 1.5px solid var(--line);
+			margin-top: 8px;
+			background: rgba(255, 255, 255, 0.05);
+		}
+
+		.invoice-table col.no { width: 7.5%; }
+		.invoice-table col.desc { width: 50.5%; }
+		.invoice-table col.qty { width: 11%; }
+		.invoice-table col.rate { width: 15.5%; }
+		.invoice-table col.amount { width: 15.5%; }
+
+		.invoice-table th,
+		.invoice-table td {
+			border: 1px solid var(--line);
+			padding: 0;
+			color: var(--ink);
+		}
+
+		.invoice-table thead th {
+			height: 34px;
+			font-size: 16px;
+			font-weight: 700;
+			text-align: center;
+			vertical-align: middle;
+			background: rgba(163, 61, 58, 0.03);
+		}
+
+		.invoice-table tbody td {
+			height: 26px;
+			font-size: 14px;
+			vertical-align: middle;
+		}
+
+		.invoice-table tbody td:not(.desc-cell):not(.no-cell):not(.qty-cell):not(.rate-cell):not(.amount-cell) {
+			padding: 0;
+		}
+
+		.no-cell,
+		.qty-cell,
+		.rate-cell,
+		.amount-cell {
+			text-align: center;
+			font-weight: 600;
+		}
+
+		.desc-cell {
+			padding: 0 10px;
+		}
+
+		.lines tr td {
+			height: 23px;
+		}
+
+		.footer-grid {
+			display: grid;
+			grid-template-columns: 1.45fr 0.55fr 0.75fr;
+			align-items: end;
+			margin-top: 0;
+		}
+
+		.words-cell,
+		.total-label-cell,
+		.total-value-cell {
+			border: 1px solid var(--line);
+			border-top: none;
+			min-height: 44px;
+			display: flex;
+			align-items: center;
+		}
+
+		.words-cell {
+			padding: 8px 10px;
+			font-size: 17px;
+			font-weight: 700;
+			min-height: 48px;
+		}
+
+		.total-label-cell {
+			justify-content: center;
+			font-size: 20px;
+			font-weight: 700;
+		}
+
+		.total-value-cell {
+			justify-content: center;
+			font-size: 18px;
+			font-weight: 700;
+		}
+
+		.contact {
+			text-align: center;
+			font-size: 14px;
+			font-weight: 700;
+			margin-top: 10px;
+		}
+
+		.ghost {
+			color: var(--ink-soft);
+		}
+
+		.placeholder {
+			color: rgba(163, 61, 58, 0.45);
+		}
+
+		.small-note {
+			font-size: 12px;
+			font-weight: 600;
+		}
+
+		@media print {
+			body {
+				background: #fff;
+				padding: 0;
+			}
+
+			.sheet {
+				width: 210mm;
+				height: 297mm;
+				box-shadow: none;
+				border-radius: 0;
+				padding: 14mm 12mm 10mm;
+			}
+		}
+	</style>
+</head>
+<body>
+	<main class="sheet">
+		<div class="logo-row">
+			<div class="logo-mark">S</div>
+			<h1 class="title">Sanjay Dharamshibhai Chavda</h1>
+		</div>
+
+		<div class="subtitle">All Type of Electrical Works</div>
+		<div class="address">"KOMAL DEEP" Satya Narayan Nagar MainRoad, Near. BatukMaharaj Guaashala, Gandhigram, Rajkot.</div>
+
+		<section class="header-grid">
+			<div>
+				<div class="field-line"><span class="label">Name</span><span class="value"></span></div>
+				<div class="field-line"><span class="label">Add</span><span class="value"></span></div>
+			</div>
+			<div class="right-meta">
+				<div>Date : <span class="placeholder">........................</span></div>
+				<div>Bill No. : <span class="placeholder">..................</span></div>
+				<div>PAN No. AGGPC1817R</div>
+			</div>
+		</section>
+
+		<table class="invoice-table">
+			<colgroup>
+				<col class="no">
+				<col class="desc">
+				<col class="qty">
+				<col class="rate">
+				<col class="amount">
+			</colgroup>
+			<thead>
+				<tr>
+					<th>No.</th>
+					<th>Description</th>
+					<th>Qty.U</th>
+					<th>Rate per U.</th>
+					<th>Amount Rs.</th>
+				</tr>
+			</thead>
+			<tbody class="lines">
+				<tr><td class="no-cell"></td><td class="desc-cell"></td><td class="qty-cell"></td><td class="rate-cell"></td><td class="amount-cell"></td></tr>
+				<tr><td class="no-cell"></td><td class="desc-cell"></td><td class="qty-cell"></td><td class="rate-cell"></td><td class="amount-cell"></td></tr>
+				<tr><td class="no-cell"></td><td class="desc-cell"></td><td class="qty-cell"></td><td class="rate-cell"></td><td class="amount-cell"></td></tr>
+				<tr><td class="no-cell"></td><td class="desc-cell"></td><td class="qty-cell"></td><td class="rate-cell"></td><td class="amount-cell"></td></tr>
+				<tr><td class="no-cell"></td><td class="desc-cell"></td><td class="qty-cell"></td><td class="rate-cell"></td><td class="amount-cell"></td></tr>
+				<tr><td class="no-cell"></td><td class="desc-cell"></td><td class="qty-cell"></td><td class="rate-cell"></td><td class="amount-cell"></td></tr>
+				<tr><td class="no-cell"></td><td class="desc-cell"></td><td class="qty-cell"></td><td class="rate-cell"></td><td class="amount-cell"></td></tr>
+				<tr><td class="no-cell"></td><td class="desc-cell"></td><td class="qty-cell"></td><td class="rate-cell"></td><td class="amount-cell"></td></tr>
+				<tr><td class="no-cell"></td><td class="desc-cell"></td><td class="qty-cell"></td><td class="rate-cell"></td><td class="amount-cell"></td></tr>
+				<tr><td class="no-cell"></td><td class="desc-cell"></td><td class="qty-cell"></td><td class="rate-cell"></td><td class="amount-cell"></td></tr>
+				<tr><td class="no-cell"></td><td class="desc-cell"></td><td class="qty-cell"></td><td class="rate-cell"></td><td class="amount-cell"></td></tr>
+				<tr><td class="no-cell"></td><td class="desc-cell"></td><td class="qty-cell"></td><td class="rate-cell"></td><td class="amount-cell"></td></tr>
+				<tr><td class="no-cell"></td><td class="desc-cell"></td><td class="qty-cell"></td><td class="rate-cell"></td><td class="amount-cell"></td></tr>
+				<tr><td class="no-cell"></td><td class="desc-cell"></td><td class="qty-cell"></td><td class="rate-cell"></td><td class="amount-cell"></td></tr>
+				<tr><td class="no-cell"></td><td class="desc-cell"></td><td class="qty-cell"></td><td class="rate-cell"></td><td class="amount-cell"></td></tr>
+				<tr><td class="no-cell"></td><td class="desc-cell"></td><td class="qty-cell"></td><td class="rate-cell"></td><td class="amount-cell"></td></tr>
+				<tr><td class="no-cell"></td><td class="desc-cell"></td><td class="qty-cell"></td><td class="rate-cell"></td><td class="amount-cell"></td></tr>
+				<tr><td class="no-cell"></td><td class="desc-cell"></td><td class="qty-cell"></td><td class="rate-cell"></td><td class="amount-cell"></td></tr>
+				<tr><td class="no-cell"></td><td class="desc-cell"></td><td class="qty-cell"></td><td class="rate-cell"></td><td class="amount-cell"></td></tr>
+				<tr><td class="no-cell"></td><td class="desc-cell"></td><td class="qty-cell"></td><td class="rate-cell"></td><td class="amount-cell"></td></tr>
+			</tbody>
+		</table>
+
+		<div class="footer-grid">
+			<div class="words-cell">Rs. in Word: <span class="placeholder">________________________________________</span></div>
+			<div class="total-label-cell">Total</div>
+			<div class="total-value-cell"><span class="placeholder">__________</span></div>
+		</div>
+
+		<div class="contact">Call. +91 92274 20287, Email. aksharlight@yahoo.in</div>
+	</main>
+
+	<script>
+	(function(){
+	  const toggle = document.getElementById('toggle-edit');
+	  const printBtn = document.getElementById('print');
+	  let editing = false;
+	  function setEditable(on){
+	    document.querySelectorAll('.value, .desc-cell, .placeholder, .desc-cell, .no-cell, .qty-cell, .rate-cell, .amount-cell').forEach(el=>{
+	      el.contentEditable = on ? 'true' : 'false';
+	      if(on) el.style.outline='1px dashed rgba(0,0,0,0.08)'; else el.style.outline='none';
+	    });
+	  }
+	  toggle.addEventListener('click', ()=>{
+	    editing = !editing; setEditable(editing); toggle.textContent = editing ? 'Stop edit' : 'Edit';
+	  });
+	  printBtn.addEventListener('click', ()=> window.print());
+	  // default: not editable
+	  setEditable(false);
+	})();
+	</script>
+</body>
+</html>

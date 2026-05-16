@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Letter Pad - Empty</title>
+  <style>
+    @font-face {
+      font-family: 'NotoGujarati';
+      {% if font_data_url %}
+      src: url("{{ font_data_url }}") format('truetype');
+      {% else %}
+      src: url('fonts/NotoSansGujarati-Regular.ttf') format('truetype');
+      {% endif %}
+      font-weight: normal;
+      font-style: normal;
+    }
+    html,body{height:100%;background:#444;padding:40px 0}
+    .page{width:210mm;min-height:297mm;margin:0 auto;padding:28mm 20mm;background:#fff;box-shadow:0 0 0 8px rgba(0,0,0,0.55)}
+    body *{box-sizing:border-box;font-family: NotoGujarati, Arial, Helvetica, sans-serif}
+    header{ text-align:center;margin-bottom:14px }
+    header h1{font-size:28px;letter-spacing:1px;margin:0;font-weight:800}
+    header p{margin:6px 0 0 0;font-weight:700;letter-spacing:1px}
+    hr.sep{border:none;border-top:2px solid #999;margin:14px 0 22px}
+    .meta{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px}
+    .to{font-weight:700}
+    .date{font-size:13px;text-align:right}
+    table.items{width:100%;border-collapse:collapse;margin-top:6px}
+    table.items td.desc{vertical-align:top;padding:6px 0;width:78%}
+    table.items td.amt{vertical-align:top;padding:6px 0;width:22%;text-align:right}
+    .line{border-bottom:1px solid #eee;height:20px;margin:8px 0}
+    .total-row{margin-top:32px;display:flex;justify-content:flex-end;align-items:center}
+    footer.sign{display:none}
+    .thanks{margin-top:28px;text-align:right;font-weight:700}
+
+    /* repeat header on each printed page (WeasyPrint-compatible) */
+    header{position: running(pageHeader)}
+    @page{size:A4;margin:28mm 20mm;@top-center{content:element(pageHeader)}}
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <h1>{{ company_name }}</h1>
+      <p>{{ company_tagline }}</p>
+    </header>
+    <hr class="sep"/>
+
+    <div class="meta">
+      <div class="to">
+        <div>To.</div>
+        <div style="margin-top:8px;font-weight:600">{{ recipient_name or '____________________________' }}</div>
+      </div>
+      <div class="date">Date: {{ bill_date or '' }}</div>
+    </div>
+
+    <table class="items">
+      <tbody>
+        {% for line in lines or range(6) %}
+        <tr>
+          <td class="desc"><div class="line">{{ line if line is string else '' }}</div></td>
+          <td class="amt">&nbsp;</td>
+        </tr>
+        {% endfor %}
+        <tr>
+          <td class="desc"><div class="line"></div></td>
+          <td class="amt">&nbsp;</td>
+        </tr>
+        <tr>
+          <td class="desc"><div class="line"></div></td>
+          <td class="amt">&nbsp;</td>
+        </tr>
+        <tr>
+          <td class="desc"><div class="line"></div></td>
+          <td class="amt">&nbsp;</td>
+        </tr>
+        <tr>
+          <td class="desc"><div class="line"></div></td>
+          <td class="amt">&nbsp;</td>
+        </tr>
+        <tr>
+          <td class="desc"><div class="line"></div></td>
+          <td class="amt">&nbsp;</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Total removed as requested -->
+
+    <div class="thanks">{{ thanks_text | default('Thanks,\nSanjay Chavda') | replace('\n','<br/>') | safe }}</div>
+  </div>
+</body>
+</html>
