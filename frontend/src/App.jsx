@@ -2,9 +2,6 @@ import { useEffect, useState, useRef } from 'react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
-const USERS_KEY = 'akhar_users';
-const INVOICES_KEY = (user) => `akhar_invoices_${user}`;
-  const LETTERS_KEY = (user) => `akhar_letters_${user}`;
 const TEMPLATE_KEY = 'akhar_selected_template';
 
 const TEMPLATES = [
@@ -59,28 +56,63 @@ function readJSON(key, fallback) {
   }
 }
 
-function loadUsers() {
-  return readJSON(USERS_KEY, {});
+// API calls for authentication
+async function signupUser(name, email, password) {
+  const response = await fetch(`${API_BASE_URL}/api/auth/signup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, email, password }),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Signup failed');
+  }
+  return response.json();
 }
 
-function saveUsers(users) {
-  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+async function loginUser(email, password) {
+  const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Login failed');
+  }
+  return response.json();
 }
 
-function loadInvoices(user) {
-  return readJSON(INVOICES_KEY(user), []);
+// API calls for invoices
+async function saveInvoiceToDb(userEmail, invoiceData) {
+  const response = await fetch(`${API_BASE_URL}/api/invoices/save`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_email: userEmail, invoice_data: invoiceData }),
+  });
+  if (!response.ok) {
+    throw new Error('Failed to save invoice');
+  }
+  return response.json();
 }
 
-function saveInvoices(user, invoices) {
-  localStorage.setItem(INVOICES_KEY(user), JSON.stringify(invoices));
+async function getInvoicesFromDb(userEmail) {
+  const response = await fetch(`${API_BASE_URL}/api/invoices/${encodeURIComponent(userEmail)}`);
+  if (!response.ok) {
+    throw new Error('Failed to fetch invoices');
+  }
+  const data = await response.json();
+  return data.invoices || [];
 }
 
-function loadLetters(user) {
-  return readJSON(LETTERS_KEY(user), []);
-}
-
-function saveLetters(user, letters) {
-  localStorage.setItem(LETTERS_KEY(user), JSON.stringify(letters));
+async function deleteInvoiceFromDb(userEmail, invoiceId) {
+  const response = await fetch(`${API_BASE_URL}/api/invoices/${encodeURIComponent(userEmail)}/${invoiceId}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    throw new Error('Failed to delete invoice');
+  }
+  return response.json();
 }
 
 async function fetchHtml(payload) {
@@ -153,29 +185,16 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return;
-    setInvoices(loadInvoices(user));
+    // Load invoices from database when user logs in
+    getInvoicesFromDb(user).then(setInvoices).catch(console.error);
   }, [user]);
-
-  useEffect(() => {
-    if (user) saveInvoices(user, invoices);
-    if (user) saveLetters(user, letters);
-  }, [user, invoices]);
-
-  useEffect(() => {
-    if (user) setLetters(loadLetters(user));
-  }, [user]);
-
-  useEffect(() => {
-    if (!user) return;
-    saveLetters(user, letters);
-  }, [user, letters]);
 
   useEffect(() => {
     localStorage.setItem(TEMPLATE_KEY, selectedTemplate);
   }, [selectedTemplate]);
 
-  const users = loadUsers();
-  const currentUserName = user ? (users[user]?.name || user) : '';
+  const users = {}; // No longer using localStorage for users
+  const currentUserName = user ? user.split('@')[0] : ''; // Extract name from email
   const selectedTemplateMeta = TEMPLATES.find((template) => template.id === selectedTemplate) || TEMPLATES[0];
   const totals = calculateTotals(form);
 
@@ -278,7 +297,7 @@ export default function App() {
     };
   };
 
-  const saveInvoice = () => {
+  const saveInvoice = async () => {
     const invoice = {
       id: editingId || Date.now(),
       number: form.number,
@@ -287,36 +306,55 @@ export default function App() {
       clientAddress: form.clientAddress,
       items: form.items,
       notes: form.notes,
-      // For letter pad template, keep amount zero and rely on notes as content
       grand: selectedTemplate === 'letter_pad' ? 0 : totals.grand,
       templateId: selectedTemplate,
       user,
     };
-    if (selectedTemplate === 'letter_pad') {
-      const updatedLetters = editingId
-        ? letters.map((item) => (item.id === editingId ? invoice : item))
-        : [...letters, invoice];
-      setLetters(updatedLetters);
-    } else {
-      const updatedInvoices = editingId
-        ? invoices.map((item) => (item.id === editingId ? invoice : item))
-        : [...invoices, invoice];
-      setInvoices(updatedInvoices);
+    
+    try {
+      // Save to database
+      await saveInvoiceToDb(user, invoice);
+      
+      // Update local state
+      if (selectedTemplate === 'letter_pad') {
+        const updatedLetters = editingId
+          ? letters.map((item) => (item.id === editingId ? invoice : item))
+          : [...letters, invoice];
+        setLetters(updatedLetters);
+      } else {
+        const updatedInvoices = editingId
+          ? invoices.map((item) => (item.id === editingId ? invoice : item))
+          : [...invoices, invoice];
+        setInvoices(updatedInvoices);
+      }
+      
+      setEditingId(null);
+      setForm(blankForm(selectedTemplate === 'letter_pad' ? letters : invoices));
+      setView('list');
+      setToast(editingId ? 'Invoice updated' : 'Invoice saved');
+    } catch (error) {
+      setToast('Failed to save: ' + error.message);
     }
-    setEditingId(null);
-    setForm(blankForm(selectedTemplate === 'letter_pad' ? letters : invoices));
-    setView('list');
-    setToast(editingId ? 'Invoice updated' : 'Invoice saved');
   };
 
-  const deleteInvoice = (id) => {
-    setInvoices((prev) => prev.filter((invoice) => invoice.id !== id));
-    setToast('Invoice deleted');
+  const deleteInvoice = async (id) => {
+    try {
+      await deleteInvoiceFromDb(user, id);
+      setInvoices((prev) => prev.filter((invoice) => invoice.id !== id));
+      setToast('Invoice deleted');
+    } catch (error) {
+      setToast('Failed to delete: ' + error.message);
+    }
   };
 
-  const deleteLetter = (id) => {
-    setLetters((prev) => prev.filter((l) => l.id !== id));
-    setToast('Letter deleted');
+  const deleteLetter = async (id) => {
+    try {
+      await deleteInvoiceFromDb(user, id);
+      setLetters((prev) => prev.filter((l) => l.id !== id));
+      setToast('Letter deleted');
+    } catch (error) {
+      setToast('Failed to delete: ' + error.message);
+    }
   };
 
   const editInvoice = (invoice) => {
@@ -357,37 +395,34 @@ export default function App() {
   };
 
   const renderAuth = () => {
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
       const email = document.getElementById('auth-email').value.trim();
       const password = document.getElementById('auth-pass').value;
-      const allUsers = loadUsers();
 
       if (!email || !password) {
         setToast('Enter email and password');
         return;
       }
 
-      if (authMode === 'login') {
-        if (allUsers[email]?.pass === password) {
+      try {
+        if (authMode === 'login') {
+          // Login via API
+          const result = await loginUser(email, password);
           setUser(email);
-          setInvoices(loadInvoices(email));
           setView('dashboard');
+          setToast('Login successful');
         } else {
-          setToast('Invalid email or password');
+          // Signup via API
+          const name = document.getElementById('auth-name').value.trim() || email.split('@')[0];
+          const result = await signupUser(name, email, password);
+          setUser(email);
+          setInvoices([]);
+          setView('dashboard');
+          setToast('Account created successfully');
         }
-        return;
+      } catch (error) {
+        setToast(error.message);
       }
-
-      const name = document.getElementById('auth-name').value.trim() || email.split('@')[0];
-      if (allUsers[email]) {
-        setToast('Email already exists');
-        return;
-      }
-      allUsers[email] = { name, pass: password };
-      saveUsers(allUsers);
-      setUser(email);
-      setInvoices([]);
-      setView('dashboard');
     };
 
     return (
