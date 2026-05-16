@@ -334,9 +334,11 @@ function saveLetters(user, letters) {
       })) || [{ id: 1, desc: '', qty: 1, price: 0 }],
       notes: invoice.notes || '',
       nextId: (invoice.items?.length || 0) + 1,
-      };
+    });
+    setView('new');
+  };
 
-      const editLetter = (letter) => {
+  const editLetter = (letter) => {
         setEditingId(letter.id);
         setSelectedTemplate('letter_pad');
         setForm({

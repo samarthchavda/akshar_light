@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: akshar-backend
+    env: python
+    region: singapore
+    buildCommand: cd backend && pip install -r requirements.txt
+    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: MONGODB_URL
+        value: mongodb+srv://StudyPoint:Cb3oog9A97jZO6cH@cluster0.whyvvvy.mongodb.net/akshar_light?retryWrites=true&w=majority&appName=Cluster0
+      - key: PYTHON_VERSION
+        value: 3.11.0
