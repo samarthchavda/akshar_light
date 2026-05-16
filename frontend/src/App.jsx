@@ -75,6 +75,14 @@ function saveInvoices(user, invoices) {
   localStorage.setItem(INVOICES_KEY(user), JSON.stringify(invoices));
 }
 
+function loadLetters(user) {
+  return readJSON(LETTERS_KEY(user), []);
+}
+
+function saveLetters(user, letters) {
+  localStorage.setItem(LETTERS_KEY(user), JSON.stringify(letters));
+}
+
 async function fetchHtml(payload) {
   const response = await fetch(`${API_BASE_URL}/api/invoice/html`, {
     method: 'POST',
@@ -161,12 +169,6 @@ export default function App() {
     if (!user) return;
     saveLetters(user, letters);
   }, [user, letters]);
-  return readJSON(LETTERS_KEY(user), []);
-}
-
-function saveLetters(user, letters) {
-  localStorage.setItem(LETTERS_KEY(user), JSON.stringify(letters));
-}
 
   useEffect(() => {
     localStorage.setItem(TEMPLATE_KEY, selectedTemplate);
@@ -339,20 +341,17 @@ function saveLetters(user, letters) {
   };
 
   const editLetter = (letter) => {
-        setEditingId(letter.id);
-        setSelectedTemplate('letter_pad');
-        setForm({
-          number: letter.number || nextInvoiceNumber(letters),
-          date: letter.date,
-          dueDate: '',
-          clientName: letter.clientName || '',
-          clientAddress: letter.clientAddress || '',
-          items: [],
-          notes: letter.notes || '',
-          nextId: 1,
-        });
-        setView('new');
-      };
+    setEditingId(letter.id);
+    setSelectedTemplate('letter_pad');
+    setForm({
+      number: letter.number || nextInvoiceNumber(letters),
+      date: letter.date,
+      dueDate: '',
+      clientName: letter.clientName || '',
+      clientAddress: letter.clientAddress || '',
+      items: [],
+      notes: letter.notes || '',
+      nextId: 1,
     });
     setView('new');
   };
