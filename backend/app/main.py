@@ -458,7 +458,22 @@ def template_render(req: TemplateRenderRequest = Body(...)) -> str:
 @app.post("/api/template/pdf")
 def template_pdf(req: TemplateRenderRequest = Body(...)) -> Response:
     try:
-        html = render_template_by_id(req.template_id, req.context or {})
+        font_path = TEMPLATE_DIR / "fonts" / "NotoSansGujarati-Regular.ttf"
+        font_data_url = None
+        if font_path.exists():
+            font_data_url = "data:font/ttf;base64," + base64.b64encode(font_path.read_bytes()).decode()
+
+        context = dict(req.context or {})
+        context.setdefault('company_name', 'Sanjay Dharamshibhai Chavda')
+        context.setdefault('company_tagline', 'ALL TYPE OF ELECTRIK WORK')
+        context.setdefault('bill_date', '')
+        context.setdefault('recipient_name', '')
+        context.setdefault('lines', [])
+        context.setdefault('thanks_text', 'Thanks,\nSanjay Chavda')
+        context['font_data_url'] = font_data_url
+        context['lang'] = context.get('lang') or 'gu' if contains_gujarati(context.get('recipient_name', '') + '\n' + '\n'.join([str(x) for x in context.get('lines', [])])) else 'en'
+
+        html = render_template_by_id(req.template_id, context)
         pdf_bytes = HTML(string=html, base_url=str(TEMPLATE_DIR)).write_pdf()
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

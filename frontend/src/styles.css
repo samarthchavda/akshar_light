@@ -244,6 +244,10 @@ button, input, textarea {
   text-align: left;
 }
 
+.nav-icon {
+  line-height: 1;
+}
+
 .nav-item.active,
 .nav-item:hover {
   background: var(--surface2);
@@ -766,8 +770,11 @@ button, input, textarea {
 /* Mobile specific styles for S24 Ultra and similar devices */
 @media (max-width: 768px) {
   .topbar {
-    height: 56px;
+    height: auto;
+    min-height: 56px;
     padding: 0 12px;
+    flex-wrap: wrap;
+    gap: 8px;
   }
   
   .topbar-brand {
@@ -777,6 +784,15 @@ button, input, textarea {
   .user-badge {
     font-size: 11px;
     padding: 5px 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 60vw;
+  }
+
+  .topbar-right {
+    width: 100%;
+    justify-content: space-between;
   }
   
   .btn-sm {
@@ -785,10 +801,19 @@ button, input, textarea {
   }
   
   .sidebar {
-    display: flex;
-    overflow-x: auto;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 30;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    overflow: visible;
     padding: 8px;
-    gap: 4px;
+    gap: 6px;
+    border-top: 1px solid var(--border);
+    border-bottom: none;
+    background: var(--surface);
   }
   
   .nav-section {
@@ -796,13 +821,24 @@ button, input, textarea {
   }
   
   .nav-item {
-    white-space: nowrap;
-    padding: 8px 14px;
-    font-size: 13px;
+    white-space: normal;
+    justify-content: center;
+    text-align: center;
+    flex-direction: column;
+    padding: 9px 6px;
+    font-size: 11px;
+    gap: 4px;
+    min-height: 54px;
+    margin-bottom: 0;
+  }
+
+  .nav-item .nav-icon {
+    font-size: 14px;
   }
   
   .panel {
     padding: 12px;
+    padding-bottom: 90px;
   }
   
   .panel-title {
@@ -899,12 +935,57 @@ button, input, textarea {
   }
   
   .invoice-table-view {
-    min-width: 600px;
+    min-width: 0;
+  }
+
+  .invoice-table-view thead {
+    display: none;
+  }
+
+  .invoice-table-view,
+  .invoice-table-view tbody,
+  .invoice-table-view tr,
+  .invoice-table-view td {
+    display: block;
+    width: 100%;
+  }
+
+  .invoice-table-view tr {
+    border-bottom: 1px solid var(--border);
+    padding: 10px 12px;
+  }
+
+  .invoice-table-view tr:last-child {
+    border-bottom: none;
+  }
+
+  .invoice-table-view td {
+    border-bottom: none;
+    padding: 7px 0;
+  }
+
+  .invoice-table-view td::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: .3px;
+    text-transform: uppercase;
+    margin-bottom: 3px;
+  }
+
+  .invoice-table-view td[data-label='Actions']::before {
+    margin-bottom: 8px;
+  }
+
+  .invoice-table-view .inv-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
   }
   
   .modal {
-    width: 95vw;
-    max-height: 85vh;
+    width: 96vw;
+    max-height: 90vh;
   }
   
   .modal-header {
@@ -929,8 +1010,8 @@ button, input, textarea {
   }
   
   .pdf-frame {
-    width: 92vw;
-    height: 65vh;
+    width: 100%;
+    height: 62vh;
   }
   
   .auth-card {

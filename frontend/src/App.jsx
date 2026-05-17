@@ -162,6 +162,24 @@ async function fetchPdf(payload) {
   return response.blob();
 }
 
+function triggerFileDownload(blob, filename) {
+  const fileUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = fileUrl;
+  anchor.download = filename;
+  anchor.rel = 'noopener';
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+
+  // Some mobile browsers ignore download; opening the blob still enables save/share.
+  if (!('download' in HTMLAnchorElement.prototype)) {
+    window.open(fileUrl, '_blank', 'noopener,noreferrer');
+  }
+
+  setTimeout(() => URL.revokeObjectURL(fileUrl), 1200);
+}
+
 export default function App() {
   const [authMode, setAuthMode] = useState('login');
   const [user, setUser] = useState(null);
@@ -186,7 +204,14 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     // Load invoices from database when user logs in
-    getInvoicesFromDb(user).then(setInvoices).catch(console.error);
+    getInvoicesFromDb(user)
+      .then((saved) => {
+        const allInvoices = (saved || []).filter((entry) => (entry.templateId || entry.template_id) !== 'letter_pad');
+        const allLetters = (saved || []).filter((entry) => (entry.templateId || entry.template_id) === 'letter_pad');
+        setInvoices(allInvoices);
+        setLetters(allLetters);
+      })
+      .catch(console.error);
   }, [user]);
 
   useEffect(() => {
@@ -201,7 +226,7 @@ export default function App() {
   const startNewInvoice = (templateId = selectedTemplate) => {
     setSelectedTemplate(templateId);
     // default form; letter pad uses notes as description and clientName as recipient
-    const base = blankForm(invoices);
+    const base = blankForm(templateId === 'letter_pad' ? letters : invoices);
     if (templateId === 'letter_pad') {
       base.clientName = '';
       base.clientAddress = '';
@@ -240,39 +265,38 @@ export default function App() {
   };
 
   const downloadPdf = async (invoice) => {
-    if (invoice.template_id === 'letter_pad' || invoice.templateId === 'letter_pad') {
-      // call template/pdf endpoint
-      const context = {
-        recipient_name: invoice.customer_name || invoice.clientName,
-        bill_date: invoice.bill_date || invoice.date,
-        lines: (invoice.notes || '').split('\n'),
-        thanks_text: 'આભાર\nસંજય ચવડા',
-      };
-      const res = await fetch(`${API_BASE_URL}/api/template/pdf`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ template_id: 'letter_pad', context }),
-      });
-      if (!res.ok) throw new Error('PDF generation failed');
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `letter_${invoice.number || 'letter'}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
-      setToast('PDF downloaded');
-      return;
-    }
+    try {
+      if (invoice.template_id === 'letter_pad' || invoice.templateId === 'letter_pad') {
+        // call template/pdf endpoint
+        const context = {
+          company_name: invoice.company_name || BUSINESS_INFO.company_name,
+          company_tagline: invoice.company_tagline || BUSINESS_INFO.company_tagline,
+          recipient_name: invoice.customer_name || invoice.clientName,
+          bill_date: invoice.bill_date || invoice.date,
+          lines: (invoice.notes || '').split('\n'),
+          thanks_text: 'આભાર\nસંજય ચવડા',
+        };
+        const res = await fetch(`${API_BASE_URL}/api/template/pdf`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ template_id: 'letter_pad', context }),
+        });
+        if (!res.ok) {
+          const txt = await res.text();
+          throw new Error(txt || 'PDF generation failed');
+        }
+        const blob = await res.blob();
+        triggerFileDownload(blob, `letter_${invoice.number || 'letter'}.pdf`);
+        setToast('PDF downloaded');
+        return;
+      }
 
-    const blob = await fetchPdf(invoice);
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `bill_${invoice.number}.pdf`;
-    a.click();
-    URL.revokeObjectURL(url);
-    setToast('PDF downloaded');
+      const blob = await fetchPdf(invoice);
+      triggerFileDownload(blob, `bill_${invoice.number || 'invoice'}.pdf`);
+      setToast('PDF downloaded');
+    } catch (error) {
+      setToast(`PDF download failed: ${error.message || 'Try again'}`);
+    }
   };
 
   const buildInvoice = () => {
@@ -330,7 +354,7 @@ export default function App() {
       
       setEditingId(null);
       setForm(blankForm(selectedTemplate === 'letter_pad' ? letters : invoices));
-      setView('list');
+      setView(selectedTemplate === 'letter_pad' ? 'letters' : 'list');
       setToast(editingId ? 'Invoice updated' : 'Invoice saved');
     } catch (error) {
       setToast('Failed to save: ' + error.message);
@@ -583,11 +607,11 @@ export default function App() {
             <tbody>
               {invoices.slice().reverse().map((invoice) => (
                 <tr key={invoice.id}>
-                  <td className="inv-id-cell">{invoice.number}</td>
-                  <td>{invoice.clientName || 'No client name'}</td>
-                  <td>{money(invoice.grand)}</td>
-                  <td>{invoice.date}</td>
-                  <td>
+                  <td className="inv-id-cell" data-label="Invoice ID">{invoice.number}</td>
+                  <td data-label="Client Name">{invoice.clientName || 'No client name'}</td>
+                  <td data-label="Amount">{money(invoice.grand)}</td>
+                  <td data-label="Date">{invoice.date}</td>
+                  <td data-label="Actions">
                     <div className="inv-actions">
                       <button className="icon-btn" title="Preview" onClick={() => openPreview(buildInvoiceFromStored(invoice))}>👁</button>
                       <button className="icon-btn" title="Edit" onClick={() => editInvoice(invoice)}>✏</button>
@@ -633,10 +657,10 @@ export default function App() {
             <tbody>
               {letters.slice().reverse().map((letter) => (
                 <tr key={letter.id}>
-                  <td className="inv-id-cell">{letter.number}</td>
-                  <td>{letter.clientName || 'No recipient'}</td>
-                  <td>{letter.date}</td>
-                  <td>
+                  <td className="inv-id-cell" data-label="Letter ID">{letter.number}</td>
+                  <td data-label="Recipient">{letter.clientName || 'No recipient'}</td>
+                  <td data-label="Date">{letter.date}</td>
+                  <td data-label="Actions">
                     <div className="inv-actions">
                       <button className="icon-btn" title="Preview" onClick={() => openPreview(buildInvoiceFromStored(letter))}>👁</button>
                       <button className="icon-btn" title="Edit" onClick={() => editLetter(letter)}>✏</button>
@@ -846,6 +870,7 @@ export default function App() {
   const onLogout = () => {
     setUser(null);
     setInvoices([]);
+    setLetters([]);
     setView('dashboard');
   };
 
@@ -876,6 +901,7 @@ export default function App() {
           {view === 'templates' && renderTemplates()}
           {view === 'new' && renderBuilder()}
           {view === 'list' && renderList()}
+          {view === 'letters' && renderLetters()}
         </div>
       </div>
 
