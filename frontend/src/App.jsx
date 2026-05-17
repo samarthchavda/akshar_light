@@ -162,6 +162,19 @@ async function fetchPdf(payload) {
   return response.blob();
 }
 
+async function formatLetterNotes(payload) {
+  const response = await fetch(`${API_BASE_URL}/api/letter/format`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || 'Letter formatting failed');
+  }
+  return response.json();
+}
+
 function triggerFileDownload(blob, filename) {
   const fileUrl = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
@@ -193,6 +206,7 @@ export default function App() {
   const [toast, setToast] = useState('');
   const [form, setForm] = useState(blankForm());
   const [isRecording, setIsRecording] = useState(false);
+  const [isFormattingLetter, setIsFormattingLetter] = useState(false);
   const recognitionRef = useRef(null);
   const [selectedTemplate, setSelectedTemplate] = useState(localStorage.getItem(TEMPLATE_KEY) || TEMPLATES[0].id);
 
@@ -690,6 +704,33 @@ export default function App() {
         await openPreview(payload, 'html');
       };
 
+      const handleAiFormat = async () => {
+        if (!form.notes.trim()) {
+          setToast('Pehla letter text lakho');
+          return;
+        }
+
+        try {
+          setIsFormattingLetter(true);
+          const result = await formatLetterNotes({
+            text: form.notes,
+            recipient_name: form.clientName,
+            bill_date: form.date,
+          });
+
+          if (result?.formatted_text?.trim()) {
+            setForm((prev) => ({ ...prev, notes: result.formatted_text }));
+            setToast(result.provider === 'openai' ? 'AI format applied' : 'Smart format applied');
+          } else {
+            setToast('No formatting suggestion generated');
+          }
+        } catch (error) {
+          setToast(`Format failed: ${error.message || 'Try again'}`);
+        } finally {
+          setIsFormattingLetter(false);
+        }
+      };
+
       const handleVoiceToggle = () => {
         if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
           alert('Speech recognition not supported in this browser');
@@ -760,6 +801,7 @@ export default function App() {
             <div className="builder-actions">
               <button className="btn-secondary" onClick={() => setView('dashboard')}>← Cancel</button>
               <button className="btn-accent" onClick={handleVoiceToggle}>{isRecording ? '● Recording...' : '🎤 Voice'}</button>
+              <button className="btn-accent" style={{ background: 'var(--accent2)' }} onClick={handleAiFormat} disabled={isFormattingLetter}>{isFormattingLetter ? 'AI Formatting...' : '✨ AI Format'}</button>
               <button className="btn-accent" onClick={handlePreview}>👁 Preview</button>
               <button className="btn-accent" onClick={() => saveInvoice()}>{editingId ? '💾 Update' : '💾 Save'}</button>
             </div>

@@ -4,7 +4,9 @@ from pathlib import Path
 import re
 from typing import Any
 import os
+import json
 from datetime import datetime
+from urllib import request as urlrequest, error as urlerror
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -64,6 +66,12 @@ class InvoiceRequest(BaseModel):
 class TemplateRenderRequest(BaseModel):
     template_id: str = Field(...)
     context: dict = Field(default_factory=dict)
+
+
+class LetterFormatRequest(BaseModel):
+    text: str = Field(default="")
+    recipient_name: str = Field(default="")
+    bill_date: str = Field(default="")
 
 
 class UserSignup(BaseModel):
@@ -410,6 +418,92 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+def local_letter_formatter(text: str) -> str:
+    raw = (text or "").replace("\r\n", "\n").replace("\r", "\n").strip()
+    if not raw:
+        return ""
+
+    normalized = re.sub(r"[ \t]+", " ", raw)
+    lines = [line.strip(" -•\t") for line in normalized.split("\n") if line.strip()]
+
+    # If a single long paragraph is provided, break it into readable lines.
+    if len(lines) <= 1:
+        chunks = re.split(r"(?<=[\.!?।])\s+", normalized)
+        lines = [chunk.strip(" -•\t") for chunk in chunks if chunk.strip()]
+
+    formatted: list[str] = []
+    for line in lines:
+        compact = re.sub(r"\s+", " ", line).strip()
+        if not compact:
+            continue
+        if re.match(r"^(to\b|dear\b|respected\b|શ્રી\b|શ્રીમતી\b|માટે\b)", compact, flags=re.IGNORECASE):
+            formatted.append(compact)
+        elif compact.startswith("•"):
+            formatted.append(f"• {compact.lstrip('• ').strip()}")
+        else:
+            formatted.append(f"• {compact}")
+
+    # Keep letters concise for template rendering.
+    return "\n".join(formatted[:22])
+
+
+def openai_letter_formatter(text: str, recipient_name: str = "", bill_date: str = "") -> str | None:
+    api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
+    if not api_key:
+        return None
+
+    model = (os.getenv("OPENAI_MODEL") or "gpt-4.1-mini").strip()
+    system_prompt = (
+        "You are a formatter for Indian business letter-pad text. "
+        "Rewrite messy raw notes into clean, professional lines for print. "
+        "Keep original meaning, language (Gujarati/English mix), names, numbers, and amounts exactly. "
+        "Return plain text only, one point per line, prefer bullet lines with the bullet symbol •. "
+        "Do not add any explanation."
+    )
+    user_prompt = (
+        f"Recipient: {recipient_name or '-'}\n"
+        f"Date: {bill_date or '-'}\n"
+        f"Raw text:\n{text}"
+    )
+
+    payload = {
+        "model": model,
+        "input": [
+            {
+                "role": "system",
+                "content": [{"type": "input_text", "text": system_prompt}],
+            },
+            {
+                "role": "user",
+                "content": [{"type": "input_text", "text": user_prompt}],
+            },
+        ],
+        "temperature": 0.2,
+        "max_output_tokens": 500,
+    }
+
+    req = urlrequest.Request(
+        "https://api.openai.com/v1/responses",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+
+    try:
+        with urlrequest.urlopen(req, timeout=20) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            output_text = (data.get("output_text") or "").strip()
+            if output_text:
+                return output_text
+    except (urlerror.URLError, TimeoutError, ValueError, KeyError, json.JSONDecodeError):
+        return None
+
+    return None
+
+
 @app.post("/api/invoice/html", response_class=HTMLResponse)
 def invoice_html(payload: InvoiceRequest) -> str:
     return render_invoice_html(payload)
@@ -483,6 +577,23 @@ def template_pdf(req: TemplateRenderRequest = Body(...)) -> Response:
         media_type="application/pdf",
         headers={"Content-Disposition": f'inline; filename="{filename}"'},
     )
+
+
+@app.post("/api/letter/format")
+def format_letter_text(payload: LetterFormatRequest) -> dict[str, str]:
+    raw_text = (payload.text or "").strip()
+    if not raw_text:
+        raise HTTPException(status_code=400, detail="Text is required")
+
+    ai_text = openai_letter_formatter(
+        text=raw_text,
+        recipient_name=payload.recipient_name,
+        bill_date=payload.bill_date,
+    )
+    if ai_text:
+        return {"formatted_text": ai_text, "provider": "openai"}
+
+    return {"formatted_text": local_letter_formatter(raw_text), "provider": "local"}
 
 
 
