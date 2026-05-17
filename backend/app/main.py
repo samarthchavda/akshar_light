@@ -423,12 +423,17 @@ def local_letter_formatter(text: str) -> str:
     if not raw:
         return ""
 
-    normalized = re.sub(r"[ \t]+", " ", raw)
-    lines = [line.strip(" -•\t") for line in normalized.split("\n") if line.strip()]
+    lines = [line.strip(" -•\t") for line in raw.split("\n") if line.strip()]
 
     # If a single long paragraph is provided, break it into readable lines.
     if len(lines) <= 1:
-        chunks = re.split(r"(?<=[\.!?।])\s+", normalized)
+        chunks = re.split(
+            r"\s{2,}|(?<=[\.!?।])\s+|\s+(?=(?:not include|terms|amount|camera|mcb|total)\b)",
+            raw,
+            flags=re.IGNORECASE,
+        )
+        if len(chunks) <= 1:
+            chunks = re.split(r"(?<=[\.!?।])\s+", raw)
         lines = [chunk.strip(" -•\t") for chunk in chunks if chunk.strip()]
 
     formatted: list[str] = []
@@ -445,6 +450,35 @@ def local_letter_formatter(text: str) -> str:
 
     # Keep letters concise for template rendering.
     return "\n".join(formatted[:22])
+
+
+def normalize_letter_output(text: str) -> str:
+    raw = (text or "").replace("\r\n", "\n").replace("\r", "\n").strip()
+    if not raw:
+        return ""
+
+    # Remove code fences or accidental markdown wrappers from AI outputs.
+    raw = re.sub(r"^```[a-zA-Z0-9_-]*\n", "", raw)
+    raw = re.sub(r"\n```$", "", raw)
+
+    normalized_lines: list[str] = []
+    for line in raw.split("\n"):
+        compact = re.sub(r"\s+", " ", line).strip()
+        if not compact:
+            continue
+
+        # Convert numbered/checklist prefixes to clean bullet format.
+        compact = re.sub(r"^(?:[-*]|\d+[\.)]|[a-zA-Z][\.)])\s*", "", compact)
+        compact = compact.lstrip("• ").strip()
+        if not compact:
+            continue
+
+        if re.match(r"^(to\b|dear\b|respected\b|શ્રી\b|શ્રીમતી\b|માટે\b)", compact, flags=re.IGNORECASE):
+            normalized_lines.append(compact)
+        else:
+            normalized_lines.append(f"• {compact}")
+
+    return "\n".join(normalized_lines[:22])
 
 
 def openai_letter_formatter(text: str, recipient_name: str = "", bill_date: str = "") -> str | None:
@@ -500,6 +534,75 @@ def openai_letter_formatter(text: str, recipient_name: str = "", bill_date: str 
                 return output_text
     except (urlerror.URLError, TimeoutError, ValueError, KeyError, json.JSONDecodeError):
         return None
+
+    return None
+
+
+def gemini_letter_formatter(text: str, recipient_name: str = "", bill_date: str = "") -> str | None:
+    api_key = (
+        (os.getenv("GEMINI_API_KEY") or "").strip()
+        or (os.getenv("GOOGLE_API_KEY") or "").strip()
+    )
+    if not api_key:
+        # Backward compatibility: treat Google-style key in OPENAI_API_KEY as Gemini key.
+        maybe_gemini = (os.getenv("OPENAI_API_KEY") or "").strip()
+        if maybe_gemini.startswith("AIza"):
+            api_key = maybe_gemini
+    if not api_key:
+        return None
+
+    configured_model = (os.getenv("GEMINI_MODEL") or "").strip()
+    model_candidates = [
+        configured_model,
+        "gemini-2.0-flash",
+        "gemini-1.5-flash",
+        "gemini-1.5-flash-latest",
+    ]
+    models = [m for m in model_candidates if m]
+
+    system_prompt = (
+        "You are a formatter for Indian business letter-pad text. "
+        "Rewrite messy raw notes into clean, professional lines for print. "
+        "Keep original meaning, language (Gujarati/English mix), names, numbers, and amounts exactly. "
+        "Return plain text only, one point per line, prefer bullet lines with the bullet symbol •. "
+        "Do not add any explanation."
+    )
+    user_prompt = (
+        f"Recipient: {recipient_name or '-'}\n"
+        f"Date: {bill_date or '-'}\n"
+        f"Raw text:\n{text}"
+    )
+
+    payload = {
+        "system_instruction": {"parts": [{"text": system_prompt}]},
+        "contents": [{"parts": [{"text": user_prompt}]}],
+        "generationConfig": {
+            "temperature": 0.2,
+            "maxOutputTokens": 500,
+        },
+    }
+
+    for model in models:
+        req = urlrequest.Request(
+            f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+
+        try:
+            with urlrequest.urlopen(req, timeout=20) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                candidates = data.get("candidates") or []
+                if not candidates:
+                    continue
+                parts = ((candidates[0].get("content") or {}).get("parts") or [])
+                text_parts = [str(part.get("text", "")).strip() for part in parts if part.get("text")]
+                formatted = "\n".join([p for p in text_parts if p]).strip()
+                if formatted:
+                    return formatted
+        except (urlerror.URLError, TimeoutError, ValueError, KeyError, json.JSONDecodeError):
+            continue
 
     return None
 
@@ -591,9 +694,17 @@ def format_letter_text(payload: LetterFormatRequest) -> dict[str, str]:
         bill_date=payload.bill_date,
     )
     if ai_text:
-        return {"formatted_text": ai_text, "provider": "openai"}
+        return {"formatted_text": normalize_letter_output(ai_text), "provider": "openai"}
 
-    return {"formatted_text": local_letter_formatter(raw_text), "provider": "local"}
+    gemini_text = gemini_letter_formatter(
+        text=raw_text,
+        recipient_name=payload.recipient_name,
+        bill_date=payload.bill_date,
+    )
+    if gemini_text:
+        return {"formatted_text": normalize_letter_output(gemini_text), "provider": "gemini"}
+
+    return {"formatted_text": normalize_letter_output(local_letter_formatter(raw_text)), "provider": "local"}
 
 
 

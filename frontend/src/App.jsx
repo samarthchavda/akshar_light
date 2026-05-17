@@ -720,7 +720,7 @@ export default function App() {
 
           if (result?.formatted_text?.trim()) {
             setForm((prev) => ({ ...prev, notes: result.formatted_text }));
-            setToast(result.provider === 'openai' ? 'AI format applied' : 'Smart format applied');
+            setToast(['openai', 'gemini'].includes(result.provider) ? 'AI format applied' : 'Smart format applied');
           } else {
             setToast('No formatting suggestion generated');
           }
