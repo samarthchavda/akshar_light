@@ -256,7 +256,7 @@ export default function App() {
     // special-case letter-pad template rendering via template endpoint
     if (invoice.template_id === 'letter_pad') {
       const context = {
-        company_name: invoice.company_name,
+        company_name: BUSINESS_INFO.company_name,
         company_tagline: invoice.company_tagline,
         recipient_name: invoice.customer_name,
         bill_date: invoice.bill_date,
