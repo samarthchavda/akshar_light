@@ -627,23 +627,36 @@ export default function App() {
     );
   };
 
-  const buildInvoiceFromStored = (invoice) => ({
-    ...BUSINESS_INFO,
-    customer_name: invoice.clientName,
-    customer_address: invoice.clientAddress,
-    bill_date: invoice.date,
-    bill_no: invoice.number,
-    pan_no: BUSINESS_INFO.pan_no,
-    items: (invoice.items || []).map((item, index) => ({
+  const buildInvoiceFromStored = (invoice) => {
+    if (!invoice) return null;
+    
+    // Handle both stored format (clientName) and preview format (customer_name)
+    const clientName = invoice.clientName || invoice.customer_name || '';
+    const clientAddress = invoice.clientAddress || invoice.customer_address || '';
+    const billDate = invoice.date || invoice.bill_date || '';
+    const billNo = invoice.number || invoice.bill_no || '';
+    
+    // Handle items in both formats
+    const items = (invoice.items || []).map((item, index) => ({
       no: index + 1,
-      description: item.desc,
+      description: item.desc || item.description || '',
       qty: Number(item.qty) || 0,
-      rate: Number(item.price) || 0,
-    })),
-    total_words: '',
-    notes: invoice.notes || '',
-    template_id: invoice.templateId || selectedTemplate,
-  });
+      rate: Number(item.price || item.rate) || 0,
+    }));
+    
+    return {
+      ...BUSINESS_INFO,
+      customer_name: clientName,
+      customer_address: clientAddress,
+      bill_date: billDate,
+      bill_no: billNo,
+      pan_no: BUSINESS_INFO.pan_no,
+      items,
+      total_words: '',
+      notes: invoice.notes || '',
+      template_id: invoice.templateId || invoice.template_id || selectedTemplate,
+    };
+  };
 
   const renderTemplates = () => (
     <div>
