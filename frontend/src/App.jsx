@@ -208,6 +208,8 @@ export default function App() {
   const [form, setForm] = useState(blankForm());
   const [isRecording, setIsRecording] = useState(false);
   const [isFormattingLetter, setIsFormattingLetter] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const recognitionRef = useRef(null);
   const [selectedTemplate, setSelectedTemplate] = useState(localStorage.getItem(TEMPLATE_KEY) || TEMPLATES[0].id);
 
@@ -443,7 +445,10 @@ export default function App() {
         return;
       }
 
+      if (isLoggingIn) return; // Prevent multiple submissions
+
       try {
+        setIsLoggingIn(true);
         if (authMode === 'login') {
           // Login via API
           const result = await loginUser(email, password);
@@ -459,6 +464,7 @@ export default function App() {
         }
       } catch (error) {
         setToast(error.message);
+        setIsLoggingIn(false);
       }
     };
 
@@ -468,24 +474,47 @@ export default function App() {
           <div className="brand">Akhar Light Billing</div>
           <div className="brand-sub">React frontend with Python PDF backend</div>
           <div className="tabs-auth">
-            <button className={`tab-auth ${authMode === 'login' ? 'active' : ''}`} onClick={() => setAuthMode('login')}>Login</button>
-            <button className={`tab-auth ${authMode === 'signup' ? 'active' : ''}`} onClick={() => setAuthMode('signup')}>Sign Up</button>
+            <button className={`tab-auth ${authMode === 'login' ? 'active' : ''}`} onClick={() => setAuthMode('login')} disabled={isLoggingIn}>Login</button>
+            <button className={`tab-auth ${authMode === 'signup' ? 'active' : ''}`} onClick={() => setAuthMode('signup')} disabled={isLoggingIn}>Sign Up</button>
           </div>
           {authMode === 'signup' && (
             <div className="field">
               <label>Full Name</label>
-              <input id="auth-name" type="text" placeholder="Your name" />
+              <input id="auth-name" type="text" placeholder="Your name" disabled={isLoggingIn} />
             </div>
           )}
           <div className="field">
             <label>Email</label>
-            <input id="auth-email" type="email" placeholder="email@example.com" />
+            <input id="auth-email" type="email" placeholder="email@example.com" disabled={isLoggingIn} />
           </div>
           <div className="field">
             <label>Password</label>
-            <input id="auth-pass" type="password" placeholder="••••••••" />
+            <div className="password-input-wrapper">
+              <input 
+                id="auth-pass" 
+                type={showPassword ? 'text' : 'password'} 
+                placeholder="••••••••"
+                disabled={isLoggingIn}
+              />
+              <button 
+                type="button"
+                className="password-toggle-btn"
+                onClick={() => setShowPassword(!showPassword)}
+                disabled={isLoggingIn}
+                title={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? '👁️' : '👁️‍🗨️'}
+              </button>
+            </div>
           </div>
-          <button className="btn-primary" onClick={handleSubmit}>{authMode === 'login' ? 'Sign In' : 'Create Account'}</button>
+          <button 
+            className="btn-primary" 
+            onClick={handleSubmit}
+            disabled={isLoggingIn}
+            style={{ opacity: isLoggingIn ? 0.6 : 1, cursor: isLoggingIn ? 'not-allowed' : 'pointer' }}
+          >
+            {isLoggingIn ? '⏳ Processing...' : (authMode === 'login' ? 'Sign In' : 'Create Account')}
+          </button>
         </div>
       </div>
     );
