@@ -177,6 +177,15 @@ button, input, textarea {
   transition: all .2s;
 }
 
+.btn-primary:disabled,
+.btn-accent:disabled,
+.btn-secondary:disabled,
+.btn-sm:disabled,
+.icon-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .btn-primary {
   width: 100%;
   border: none;

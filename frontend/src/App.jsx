@@ -230,6 +230,7 @@ export default function App() {
   const [isFormattingLetter, setIsFormattingLetter] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const recognitionRef = useRef(null);
   const [selectedTemplate, setSelectedTemplate] = useState(localStorage.getItem(TEMPLATE_KEY) || TEMPLATES[0].id);
 
@@ -276,33 +277,47 @@ export default function App() {
   };
 
   const openPreview = async (invoice, kind = 'html') => {
-    // special-case letter-pad template rendering via template endpoint
-    if (invoice.template_id === 'letter_pad') {
-      const context = {
-        company_name: BUSINESS_INFO.company_name,
-        company_tagline: invoice.company_tagline,
-        recipient_name: invoice.customer_name,
-        bill_date: invoice.bill_date,
-        lines: (invoice.notes || '').split('\n').slice(0, 10),
-        thanks_text: 'Thanks,\nSanjay Chavda',
-      };
-      const html = await fetchTemplateHtmlById('letter_pad', context);
-      const blob = new Blob([html], { type: 'text/html' });
+    try {
+      setIsLoadingPreview(true);
+      setToast('⏳ Loading preview...');
+      
+      // special-case letter-pad template rendering via template endpoint
+      if (invoice.template_id === 'letter_pad') {
+        const context = {
+          company_name: BUSINESS_INFO.company_name,
+          company_tagline: invoice.company_tagline,
+          recipient_name: invoice.customer_name,
+          bill_date: invoice.bill_date,
+          lines: (invoice.notes || '').split('\n').slice(0, 10),
+          thanks_text: 'Thanks,\nSanjay Chavda',
+        };
+        const html = await fetchTemplateHtmlById('letter_pad', context);
+        const blob = new Blob([html], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        setPreviewInvoice(invoice);
+        setPreviewUrl(url);
+        setPreviewKind('html');
+        setToast('✅ Preview loaded');
+        return;
+      }
+      
+      const blob = kind === 'pdf' ? await fetchPdf(invoice) : new Blob([await fetchHtml(invoice)], { type: 'text/html' });
       const url = URL.createObjectURL(blob);
       setPreviewInvoice(invoice);
       setPreviewUrl(url);
-      setPreviewKind('html');
-      return;
+      setPreviewKind(kind);
+      setToast('✅ Preview loaded');
+    } catch (error) {
+      setToast(`Preview failed: ${error.message}`);
+    } finally {
+      setIsLoadingPreview(false);
     }
-    const blob = kind === 'pdf' ? await fetchPdf(invoice) : new Blob([await fetchHtml(invoice)], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    setPreviewInvoice(invoice);
-    setPreviewUrl(url);
-    setPreviewKind(kind);
   };
 
   const downloadPdf = async (invoice) => {
     try {
+      setIsLoadingPreview(true);
+      setToast('⏳ Generating PDF...');
       const iOS = isIOS();
       
       if (invoice.template_id === 'letter_pad' || invoice.templateId === 'letter_pad') {
@@ -325,16 +340,20 @@ export default function App() {
           throw new Error(txt || 'PDF generation failed');
         }
         const blob = await res.blob();
+        setToast(iOS ? '⏳ Processing...' : '⏳ Starting download...');
         triggerFileDownload(blob, `letter_${invoice.number || 'letter'}.pdf`);
         setToast(iOS ? '📱 PDF opened - Tap Share to save' : '✅ PDF downloaded');
         return;
       }
 
       const blob = await fetchPdf(invoice);
+      setToast(iOS ? '⏳ Processing...' : '⏳ Starting download...');
       triggerFileDownload(blob, `bill_${invoice.number || 'invoice'}.pdf`);
       setToast(iOS ? '📱 PDF opened - Tap Share to save' : '✅ PDF downloaded');
     } catch (error) {
       setToast(`PDF download failed: ${error.message || 'Try again'}`);
+    } finally {
+      setIsLoadingPreview(false);
     }
   };
 
@@ -849,11 +868,11 @@ export default function App() {
             </div>
 
             <div className="builder-actions">
-              <button className="btn-secondary" onClick={() => setView('dashboard')}>← Cancel</button>
-              <button className="btn-accent" onClick={handleVoiceToggle}>{isRecording ? '● Recording...' : '🎤 Voice'}</button>
-              <button className="btn-accent" style={{ background: 'var(--accent2)' }} onClick={handleAiFormat} disabled={isFormattingLetter}>{isFormattingLetter ? 'AI Formatting...' : '✨ AI Format'}</button>
-              <button className="btn-accent" onClick={handlePreview}>👁 Preview</button>
-              <button className="btn-accent" onClick={() => saveInvoice()}>{editingId ? '💾 Update' : '💾 Save'}</button>
+              <button className="btn-secondary" onClick={() => setView('dashboard')} disabled={isLoadingPreview}>← Cancel</button>
+              <button className="btn-accent" onClick={handleVoiceToggle} disabled={isLoadingPreview}>{isRecording ? '● Recording...' : '🎤 Voice'}</button>
+              <button className="btn-accent" style={{ background: 'var(--accent2)' }} onClick={handleAiFormat} disabled={isFormattingLetter || isLoadingPreview}>{isFormattingLetter ? 'AI Formatting...' : '✨ AI Format'}</button>
+              <button className="btn-accent" onClick={handlePreview} disabled={isLoadingPreview}>{isLoadingPreview ? '⏳ Loading...' : '👁 Preview'}</button>
+              <button className="btn-accent" onClick={() => saveInvoice()} disabled={isLoadingPreview}>{editingId ? '💾 Update' : '💾 Save'}</button>
             </div>
           </div>
         </div>
@@ -950,9 +969,9 @@ export default function App() {
           </div>
 
           <div className="builder-actions">
-            <button className="btn-secondary" onClick={() => setView('dashboard')}>← Cancel</button>
-            <button className="btn-accent" onClick={saveInvoice}>{editingId ? '💾 Update Invoice' : '💾 Save Invoice'}</button>
-            <button className="btn-accent" style={{ background: 'var(--success)' }} onClick={() => openPreview(buildInvoice(), 'html')}>👁 Preview</button>
+            <button className="btn-secondary" onClick={() => setView('dashboard')} disabled={isLoadingPreview}>← Cancel</button>
+            <button className="btn-accent" onClick={saveInvoice} disabled={isLoadingPreview}>{editingId ? '💾 Update Invoice' : '💾 Save Invoice'}</button>
+            <button className="btn-accent" style={{ background: 'var(--success)' }} onClick={() => openPreview(buildInvoice(), 'html')} disabled={isLoadingPreview}>{isLoadingPreview ? '⏳ Loading...' : '👁 Preview'}</button>
           </div>
         </div>
       </div>
@@ -1049,8 +1068,10 @@ export default function App() {
 
             <div className="modal-body" style={{ flex: 1, overflow: 'auto', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', padding: '20px', background: '#1a1d25', position: 'relative' }}>
               <div className="pdf-actions-mobile">
-                <button className="pdf-action-btn close-btn" onClick={() => { setPreviewInvoice(null); setPreviewUrl(''); setView('list'); }} title="Close and go to invoices">✕</button>
-                <button className="pdf-action-btn download-btn" onClick={() => downloadPdf(buildInvoiceFromStored(previewInvoice))} title="Download PDF">⬇</button>
+                <button className="pdf-action-btn close-btn" onClick={() => { setPreviewInvoice(null); setPreviewUrl(''); setView('list'); }} title="Close and go to invoices" disabled={isLoadingPreview}>✕</button>
+                <button className="pdf-action-btn download-btn" onClick={() => downloadPdf(buildInvoiceFromStored(previewInvoice))} title="Download PDF" disabled={isLoadingPreview} style={{ opacity: isLoadingPreview ? 0.6 : 1 }}>
+                  {isLoadingPreview ? '⏳' : '⬇'}
+                </button>
               </div>
               <div className={`device-frame device-${previewDevice}`}>
                 <iframe title={`Invoice ${previewKind} Preview`} src={previewUrl} className="pdf-frame" style={{ width: '100%', height: '100%', border: 'none' }} />
@@ -1058,8 +1079,15 @@ export default function App() {
             </div>
 
             <div className="modal-footer" style={{ padding: '16px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: '10px', justifyContent: 'space-between', flexWrap: 'wrap' }}>
-              <button className="btn-secondary" onClick={() => { setPreviewInvoice(null); setPreviewUrl(''); setView('list'); }}>← Close & Go to Invoices</button>
-              <button className="btn-accent" style={{ background: 'var(--success)', flex: 1, minWidth: '150px', fontWeight: 600, padding: '10px 16px' }} onClick={() => downloadPdf(buildInvoiceFromStored(previewInvoice))}>⬇ Download PDF</button>
+              <button className="btn-secondary" onClick={() => { setPreviewInvoice(null); setPreviewUrl(''); setView('list'); }} disabled={isLoadingPreview}>← Close & Go to Invoices</button>
+              <button 
+                className="btn-accent" 
+                style={{ background: 'var(--success)', flex: 1, minWidth: '150px', fontWeight: 600, padding: '10px 16px', opacity: isLoadingPreview ? 0.6 : 1, cursor: isLoadingPreview ? 'not-allowed' : 'pointer' }} 
+                onClick={() => downloadPdf(buildInvoiceFromStored(previewInvoice))}
+                disabled={isLoadingPreview}
+              >
+                {isLoadingPreview ? '⏳ Generating...' : '⬇ Download PDF'}
+              </button>
             </div>
           </div>
         </div>
