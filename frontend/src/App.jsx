@@ -82,19 +82,6 @@ async function loginUser(email, password) {
   }
   return response.json();
 }
-
-async function signupUser(name, email, password) {
-  const response = await fetch(`${API_BASE_URL}/api/auth/signup`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, email, password }),
-  });
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.detail || 'Signup failed');
-  }
-  return response.json();
-}
 // API calls for invoices
 async function saveInvoiceToDb(userEmail, invoiceData) {
   const response = await fetch(`${API_BASE_URL}/api/invoices/save`, {
