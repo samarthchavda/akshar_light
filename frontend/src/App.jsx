@@ -203,6 +203,7 @@ export default function App() {
   const [previewInvoice, setPreviewInvoice] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
   const [previewKind, setPreviewKind] = useState('pdf');
+  const [previewDevice, setPreviewDevice] = useState('desktop');
   const [toast, setToast] = useState('');
   const [form, setForm] = useState(blankForm());
   const [isRecording, setIsRecording] = useState(false);
@@ -448,7 +449,6 @@ export default function App() {
           const result = await loginUser(email, password);
           setUser(email);
           setView('dashboard');
-          setToast('Login successful');
         } else {
           // Signup via API
           const name = document.getElementById('auth-name').value.trim() || email.split('@')[0];
@@ -456,7 +456,6 @@ export default function App() {
           setUser(email);
           setInvoices([]);
           setView('dashboard');
-          setToast('Account created successfully');
         }
       } catch (error) {
         setToast(error.message);
@@ -949,17 +948,67 @@ export default function App() {
 
       {previewInvoice && previewUrl && (
         <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) { setPreviewInvoice(null); setPreviewUrl(''); } }}>
-          <div className="modal" style={{ width: 'min(95vw, 980px)' }}>
+          <div className="modal" style={{ width: 'min(95vw, 980px)', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
             <div className="modal-header">
               <div className="modal-title">Invoice {previewInvoice.number} Preview</div>
               <button className="modal-close" onClick={() => { setPreviewInvoice(null); setPreviewUrl(''); }}>×</button>
             </div>
-            <div className="modal-body">
-              <iframe title={`Invoice ${previewKind} Preview`} src={previewUrl} className="pdf-frame" />
+            
+            <div className="device-selector" style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button 
+                className={`device-btn ${previewDevice === 'mobile' ? 'active' : ''}`}
+                onClick={() => setPreviewDevice('mobile')}
+                style={{ 
+                  padding: '6px 12px', 
+                  fontSize: '12px', 
+                  borderRadius: '6px', 
+                  border: previewDevice === 'mobile' ? '2px solid var(--accent)' : '1px solid var(--border2)',
+                  background: previewDevice === 'mobile' ? 'var(--accent)' : 'transparent',
+                  color: previewDevice === 'mobile' ? '#fff' : 'var(--muted)',
+                  cursor: 'pointer'
+                }}
+              >📱 Mobile</button>
+              <button 
+                className={`device-btn ${previewDevice === 'tablet' ? 'active' : ''}`}
+                onClick={() => setPreviewDevice('tablet')}
+                style={{ 
+                  padding: '6px 12px', 
+                  fontSize: '12px', 
+                  borderRadius: '6px', 
+                  border: previewDevice === 'tablet' ? '2px solid var(--accent)' : '1px solid var(--border2)',
+                  background: previewDevice === 'tablet' ? 'var(--accent)' : 'transparent',
+                  color: previewDevice === 'tablet' ? '#fff' : 'var(--muted)',
+                  cursor: 'pointer'
+                }}
+              >📑 Tablet</button>
+              <button 
+                className={`device-btn ${previewDevice === 'desktop' ? 'active' : ''}`}
+                onClick={() => setPreviewDevice('desktop')}
+                style={{ 
+                  padding: '6px 12px', 
+                  fontSize: '12px', 
+                  borderRadius: '6px', 
+                  border: previewDevice === 'desktop' ? '2px solid var(--accent)' : '1px solid var(--border2)',
+                  background: previewDevice === 'desktop' ? 'var(--accent)' : 'transparent',
+                  color: previewDevice === 'desktop' ? '#fff' : 'var(--muted)',
+                  cursor: 'pointer'
+                }}
+              >💻 Desktop</button>
             </div>
-            <div className="modal-footer">
-              <button className="btn-secondary" onClick={() => { setPreviewInvoice(null); setPreviewUrl(''); }}>← Close</button>
-              <button className="btn-accent" style={{ background: 'var(--accent2)' }} onClick={() => downloadPdf(buildInvoiceFromStored(previewInvoice))}>⬇ Download PDF</button>
+
+            <div className="modal-body" style={{ flex: 1, overflow: 'auto', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', padding: '20px', background: '#1a1d25', position: 'relative' }}>
+              <div className="pdf-actions-mobile">
+                <button className="pdf-action-btn close-btn" onClick={() => { setPreviewInvoice(null); setPreviewUrl(''); setView('list'); }} title="Close and go to invoices">✕</button>
+                <button className="pdf-action-btn download-btn" onClick={() => downloadPdf(buildInvoiceFromStored(previewInvoice))} title="Download PDF">⬇</button>
+              </div>
+              <div className={`device-frame device-${previewDevice}`}>
+                <iframe title={`Invoice ${previewKind} Preview`} src={previewUrl} className="pdf-frame" style={{ width: '100%', height: '100%', border: 'none' }} />
+              </div>
+            </div>
+
+            <div className="modal-footer" style={{ padding: '16px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: '10px', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+              <button className="btn-secondary" onClick={() => { setPreviewInvoice(null); setPreviewUrl(''); setView('list'); }}>← Close & Go to Invoices</button>
+              <button className="btn-accent" style={{ background: 'var(--success)', flex: 1, minWidth: '150px', fontWeight: 600, padding: '10px 16px' }} onClick={() => downloadPdf(buildInvoiceFromStored(previewInvoice))}>⬇ Download PDF</button>
             </div>
           </div>
         </div>
