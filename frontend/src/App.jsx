@@ -175,21 +175,41 @@ async function formatLetterNotes(payload) {
   return response.json();
 }
 
-function triggerFileDownload(blob, filename) {
-  const fileUrl = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = fileUrl;
-  anchor.download = filename;
-  anchor.rel = 'noopener';
-  document.body.appendChild(anchor);
-  anchor.click();
-  document.body.removeChild(anchor);
+function isIOS() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+}
 
-  // Some mobile browsers ignore download; opening the blob still enables save/share.
-  if (!('download' in HTMLAnchorElement.prototype)) {
-    window.open(fileUrl, '_blank', 'noopener,noreferrer');
+function triggerFileDownload(blob, filename) {
+  const iOS = isIOS();
+  const fileUrl = URL.createObjectURL(blob);
+  
+  if (iOS) {
+    // iOS specific: Open in new tab for user to save
+    const reader = new FileReader();
+    reader.onload = () => {
+      const link = document.createElement('a');
+      link.href = reader.result;
+      link.target = '_blank';
+      link.download = filename;
+      link.rel = 'noopener';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    };
+    reader.readAsDataURL(blob);
+  } else {
+    // Desktop & Android: Use traditional download
+    const anchor = document.createElement('a');
+    anchor.href = fileUrl;
+    anchor.download = filename;
+    anchor.rel = 'noopener';
+    anchor.setAttribute('target', '_blank');
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
   }
 
+  // Cleanup
   setTimeout(() => URL.revokeObjectURL(fileUrl), 1200);
 }
 
@@ -283,6 +303,8 @@ export default function App() {
 
   const downloadPdf = async (invoice) => {
     try {
+      const iOS = isIOS();
+      
       if (invoice.template_id === 'letter_pad' || invoice.templateId === 'letter_pad') {
         // call template/pdf endpoint
         const context = {
@@ -304,13 +326,13 @@ export default function App() {
         }
         const blob = await res.blob();
         triggerFileDownload(blob, `letter_${invoice.number || 'letter'}.pdf`);
-        setToast('PDF downloaded');
+        setToast(iOS ? '📱 PDF opened - Tap Share to save' : '✅ PDF downloaded');
         return;
       }
 
       const blob = await fetchPdf(invoice);
       triggerFileDownload(blob, `bill_${invoice.number || 'invoice'}.pdf`);
-      setToast('PDF downloaded');
+      setToast(iOS ? '📱 PDF opened - Tap Share to save' : '✅ PDF downloaded');
     } catch (error) {
       setToast(`PDF download failed: ${error.message || 'Try again'}`);
     }
