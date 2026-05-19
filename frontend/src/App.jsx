@@ -83,6 +83,18 @@ async function loginUser(email, password) {
   return response.json();
 }
 
+async function signupUser(name, email, password) {
+  const response = await fetch(`${API_BASE_URL}/api/auth/signup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, email, password }),
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || 'Signup failed');
+  }
+  return response.json();
+}
 // API calls for invoices
 async function saveInvoiceToDb(userEmail, invoiceData) {
   const response = await fetch(`${API_BASE_URL}/api/invoices/save`, {
@@ -126,6 +138,16 @@ async function fetchHtml(payload) {
     throw new Error(text || 'Preview generation failed');
   }
   return response.text();
+
+// Add request timeout wrapper
+function fetchWithTimeout(url, options = {}, timeout = 10000) {
+  return Promise.race([
+    fetch(url, options),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Request timeout')), timeout)
+    ),
+  ]);
+}
 }
 
 async function fetchTemplateHtmlById(templateId, context) {
@@ -314,6 +336,15 @@ export default function App() {
     }
   };
 
+  // Preload next preview for faster viewing
+  const preloadPreview = async (invoice) => {
+    try {
+      if (!invoice) return;
+      await fetchHtml(invoice);
+    } catch (err) {
+      // Silently fail preload
+    }
+  };
   const downloadPdf = async (invoice) => {
     try {
       setIsLoadingPreview(true);

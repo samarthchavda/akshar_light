@@ -76,28 +76,29 @@
     .title {
       margin: 0;
       text-align: center;
-      font-size: 34px;
-      letter-spacing: 0.6px;
+      font-size: 38px;
+      letter-spacing: 0.8px;
       font-weight: 700;
       text-transform: uppercase;
-      line-height: 1.05;
+      line-height: 1.1;
       width: 100%;
     }
 
     .subtitle {
-      margin: 2px 0 6px;
+      margin: 4px 0 8px;
       text-align: center;
-      font-size: 24px;
+      font-size: 26px;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.4px;
+      letter-spacing: 0.5px;
     }
 
     .address {
       text-align: center;
-      font-size: 13px;
-      line-height: 1.3;
-      margin-bottom: 12px;
+      font-size: 14px;
+      line-height: 1.4;
+      margin-bottom: 14px;
+      font-weight: 600;
       font-weight: 600;
     }
 
@@ -119,14 +120,18 @@
     }
 
     .field-line .label {
-      width: 62px;
+      width: 55px;
       flex: none;
+      font-size: 18px;
+      font-weight: 700;
     }
 
     .field-line .value {
       flex: 1;
       border-bottom: 2px dotted var(--line-strong);
       height: 22px;
+      font-size: 16px;
+      padding-bottom: 2px;
     }
 
     .right-meta {
@@ -137,7 +142,11 @@
       text-align: left;
     }
 
-    .right-meta div { min-height: 24px; }
+    .right-meta div { 
+      min-height: 26px;
+      font-size: 16px;
+      font-weight: 700;
+    }
 
     .invoice-table {
       width: 100%;
@@ -148,11 +157,11 @@
       background: rgba(255, 255, 255, 0.05);
     }
 
-    .invoice-table col.no { width: 7.5%; }
-    .invoice-table col.desc { width: 50.5%; }
-    .invoice-table col.qty { width: 11%; }
-    .invoice-table col.rate { width: 15.5%; }
-    .invoice-table col.amount { width: 15.5%; }
+    .invoice-table col.no { width: 6%; }
+    .invoice-table col.desc { width: 48%; }
+    .invoice-table col.qty { width: 12%; }
+    .invoice-table col.rate { width: 17%; }
+    .invoice-table col.amount { width: 17%; }
 
     .invoice-table th,
     .invoice-table td {
@@ -162,18 +171,20 @@
     }
 
     .invoice-table thead th {
-      height: 34px;
-      font-size: 16px;
+      height: 36px;
+      font-size: 15px;
       font-weight: 700;
       text-align: center;
       vertical-align: middle;
-      background: rgba(163, 61, 58, 0.03);
+      background: rgba(163, 61, 58, 0.05);
+      padding: 6px;
     }
 
     .invoice-table tbody td {
-      height: 26px;
+      height: 28px;
       font-size: 14px;
       vertical-align: middle;
+      padding: 4px;
     }
 
     .no-cell,
@@ -185,6 +196,11 @@
     }
 
     .desc-cell { padding: 0 10px; }
+    .desc-cell { 
+      padding: 4px 10px;
+      word-wrap: break-word;
+      word-break: break-word;
+    }
 
     .lines tr td { height: 23px; }
 
@@ -229,6 +245,13 @@
       font-size: 14px;
       font-weight: 700;
       margin-top: 10px;
+        .contact {
+          text-align: center;
+          font-size: 13px;
+          font-weight: 600;
+          margin-top: 8px;
+          line-height: 1.3;
+        }
     }
 
     .placeholder { color: rgba(163, 61, 58, 0.45); }
