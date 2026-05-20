@@ -252,7 +252,7 @@
       border-right: 1px solid var(--line);
       padding: 12px 8px;
       font-size: 15px;
-      font-weight: 600;
+      font-weight: 700;
       text-align: right;
       background: rgba(163, 61, 58, 0.05);
     }
@@ -264,12 +264,18 @@
       text-align: right;
     }
 
-    .total-row .summary-label,
-    .total-row .summary-value {
+    .summary-row.total-row .summary-label,
+    .summary-row.total-row .summary-value {
       background: rgba(163, 61, 58, 0.1);
       font-size: 16px;
       padding: 14px 8px;
       font-weight: 700;
+    }
+
+    .summary-row.gst-row .summary-label,
+    .summary-row.gst-row .summary-value {
+      font-weight: 700;
+      font-size: 15px;
     }
 
     .contact {
@@ -354,10 +360,10 @@
       <div class="footer-right">
         {% if gst_enabled %}
           <div class="summary-row">
-            <div class="summary-label">Subtotal</div>
+            <div class="summary-label">Total</div>
             <div class="summary-value">₹ {{ '%.2f'|format(subtotal or total) }}</div>
           </div>
-          <div class="summary-row">
+          <div class="summary-row gst-row">
             <div class="summary-label">GST @ 18%</div>
             <div class="summary-value">₹ {{ '%.2f'|format(gst_amount or 0) }}</div>
           </div>
