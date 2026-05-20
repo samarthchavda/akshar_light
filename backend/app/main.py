@@ -365,17 +365,21 @@ def render_invoice_html(payload: InvoiceRequest) -> str:
     template = env.get_template("bill_template.html")
     items, total = compute_items(payload)
     empty_rows = max(0, 20 - len(items))
-    final_total_words = (payload.total_words or "").strip() or amount_to_words_i18n(total, payload)
+    
+    # Calculate GST and final total first
+    gst_amount = payload.gst_amount or 0
+    gst_enabled = payload.gst_enabled or False
+    subtotal = payload.subtotal or total
+    final_total = total if not gst_enabled else (subtotal + gst_amount)
+    
+    # Now calculate total_words using final_total
+    final_total_words = (payload.total_words or "").strip() or amount_to_words_i18n(final_total, payload)
+    
     # embed font as base64 if available so blob previews render Gujarati correctly
     font_path = TEMPLATE_DIR / "fonts" / "NotoSansGujarati-Regular.ttf"
     font_data_url = None
     if font_path.exists():
         font_data_url = "data:font/ttf;base64," + base64.b64encode(font_path.read_bytes()).decode()
-
-    gst_amount = payload.gst_amount or 0
-    gst_enabled = payload.gst_enabled or False
-    subtotal = payload.subtotal or total
-    final_total = total if not gst_enabled else (subtotal + gst_amount)
     
     return template.render(
         company_name=payload.company_name,

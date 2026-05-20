@@ -381,6 +381,7 @@ export default function App() {
 
   const buildInvoice = () => {
     const sub = form.items.reduce((sum, item) => sum + (Number(item.qty) || 0) * (Number(item.price) || 0), 0);
+    const gst = form.gst_enabled ? sub * 0.18 : 0;
     return {
       ...BUSINESS_INFO,
       customer_name: form.clientName,
@@ -394,9 +395,11 @@ export default function App() {
         qty: Number(item.qty) || 0,
         rate: Number(item.price) || 0,
       })),
+      subtotal: sub,
+      gst_enabled: form.gst_enabled,
+      gst_amount: gst,
       total_words: '',
       notes: form.notes,
-      subtotal: sub,
       template_id: selectedTemplate,
     };
   };
