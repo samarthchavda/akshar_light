@@ -43,6 +43,7 @@ const blankForm = (invoices = []) => ({
   clientAddress: '',
   items: [{ id: 1, desc: '', qty: 1, price: 0 }],
   notes: '',
+  gst_enabled: false,
   nextId: 2,
 });
 
@@ -152,9 +153,12 @@ async function fetchTemplateHtmlById(templateId, context) {
 
 function calculateTotals(form) {
   const subtotal = form.items.reduce((sum, item) => sum + (Number(item.qty) || 0) * (Number(item.price) || 0), 0);
+  const gst = form.gst_enabled ? subtotal * 0.18 : 0;
+  const grand = subtotal + gst;
   return {
     subtotal,
-    grand: subtotal,
+    gst,
+    grand,
   };
 }
 
@@ -406,6 +410,7 @@ export default function App() {
       clientAddress: form.clientAddress,
       items: form.items,
       notes: form.notes,
+      gst_enabled: form.gst_enabled,
       grand: selectedTemplate === 'letter_pad' ? 0 : totals.grand,
       templateId: selectedTemplate,
       user,
@@ -635,6 +640,7 @@ export default function App() {
     const clientAddress = invoice.clientAddress || invoice.customer_address || '';
     const billDate = invoice.date || invoice.bill_date || '';
     const billNo = invoice.number || invoice.bill_no || '';
+    const gstEnabled = invoice.gst_enabled || false;
     
     // Handle items in both formats
     const items = (invoice.items || []).map((item, index) => ({
@@ -644,6 +650,9 @@ export default function App() {
       rate: Number(item.price || item.rate) || 0,
     }));
     
+    const sub = items.reduce((sum, item) => sum + item.qty * item.rate, 0);
+    const gst = gstEnabled ? sub * 0.18 : 0;
+    
     return {
       ...BUSINESS_INFO,
       customer_name: clientName,
@@ -652,6 +661,10 @@ export default function App() {
       bill_no: billNo,
       pan_no: BUSINESS_INFO.pan_no,
       items,
+      subtotal: sub,
+      gst_enabled: gstEnabled,
+      gst_amount: gst,
+      total: sub + gst,
       total_words: '',
       notes: invoice.notes || '',
       template_id: invoice.templateId || invoice.template_id || selectedTemplate,
@@ -985,9 +998,21 @@ export default function App() {
           </div>
 
           <div className="builder-section">
-            <div className="builder-section-title">Pricing</div>
+            <div className="builder-section-title">Pricing & Tax</div>
+            <div style={{ marginBottom: '12px', padding: '8px', backgroundColor: 'rgba(163, 61, 58, 0.1)', borderRadius: '4px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  checked={form.gst_enabled} 
+                  onChange={(e) => setForm((prev) => ({ ...prev, gst_enabled: e.target.checked }))}
+                  style={{ cursor: 'pointer', width: '18px', height: '18px' }}
+                />
+                <span style={{ fontWeight: 600 }}>Apply GST (18% Tax)</span>
+              </label>
+            </div>
             <div className="totals-box">
               <div className="total-row"><span className="label">Subtotal</span><span>{money(totals.subtotal)}</span></div>
+              {form.gst_enabled && <div className="total-row"><span className="label">GST (18%)</span><span>{money(totals.gst)}</span></div>}
               <div className="total-row divider grand"><span>Grand Total</span><span>{money(totals.grand)}</span></div>
             </div>
           </div>

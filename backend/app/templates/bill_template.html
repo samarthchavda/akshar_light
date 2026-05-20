@@ -314,6 +314,12 @@
 
     <div class="footer-grid">
       <div class="words-cell">Rs. in Word: <span class="placeholder">{{ total_words or '________________________________________' }}</span></div>
+      {% if gst_enabled %}
+        <div class="total-label-cell">Subtotal</div>
+        <div class="total-value-cell">Rs. {{ '%.2f'|format(subtotal or total) }}</div>
+        <div class="total-label-cell">GST (18%)</div>
+        <div class="total-value-cell">Rs. {{ '%.2f'|format(gst_amount or 0) }}</div>
+      {% endif %}
       <div class="total-label-cell">Total</div>
       <div class="total-value-cell">Rs. {{ '%.2f'|format(total) }}</div>
     </div>

@@ -58,6 +58,9 @@ class InvoiceRequest(BaseModel):
     bill_no: str = ""
     pan_no: str = "AGGPC1817R"
     items: list[Item] = Field(default_factory=list)
+    subtotal: float = Field(default=0, ge=0)
+    gst_enabled: bool = False
+    gst_amount: float = Field(default=0, ge=0)
     total_words: str = ""
     notes: str = ""
     language: str = "auto"
@@ -369,6 +372,11 @@ def render_invoice_html(payload: InvoiceRequest) -> str:
     if font_path.exists():
         font_data_url = "data:font/ttf;base64," + base64.b64encode(font_path.read_bytes()).decode()
 
+    gst_amount = payload.gst_amount or 0
+    gst_enabled = payload.gst_enabled or False
+    subtotal = payload.subtotal or total
+    final_total = total if not gst_enabled else (subtotal + gst_amount)
+    
     return template.render(
         company_name=payload.company_name,
         company_tagline=payload.company_tagline,
@@ -381,7 +389,10 @@ def render_invoice_html(payload: InvoiceRequest) -> str:
         pan_no=payload.pan_no,
         items=items,
         empty_rows=empty_rows,
-        total=total,
+        subtotal=subtotal,
+        gst_enabled=gst_enabled,
+        gst_amount=gst_amount,
+        total=final_total,
         total_words=final_total_words,
         notes=payload.notes or "",
         font_data_url=font_data_url,
