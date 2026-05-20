@@ -481,6 +481,7 @@ export default function App() {
         price: item.price,
       })) || [{ id: 1, desc: '', qty: 1, price: 0 }],
       notes: invoice.notes || '',
+      gst_enabled: invoice.gst_enabled || false,
       nextId: (invoice.items?.length || 0) + 1,
     });
     setView('new');
