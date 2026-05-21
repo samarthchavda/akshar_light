@@ -169,6 +169,56 @@ async function fetchTemplateHtmlById(templateId, context) {
   return response.text();
 }
 
+async function downloadTemplatePdfInBrowser(templateId, context, filename) {
+  const html = await fetchTemplateHtmlById(templateId, context);
+  const frame = document.createElement('iframe');
+  frame.setAttribute('aria-hidden', 'true');
+  frame.style.position = 'fixed';
+  frame.style.left = '-10000px';
+  frame.style.top = '0';
+  frame.style.width = '210mm';
+  frame.style.height = '297mm';
+  frame.style.visibility = 'hidden';
+  document.body.appendChild(frame);
+
+  try {
+    frame.srcdoc = html;
+    await new Promise((resolve, reject) => {
+      frame.onload = () => resolve();
+      frame.onerror = () => reject(new Error('Preview frame failed to load'));
+    });
+
+    const frameDoc = frame.contentDocument;
+    if (frameDoc?.fonts?.ready) {
+      await frameDoc.fonts.ready;
+    }
+
+    const source = frameDoc?.querySelector('.sheet') || frameDoc?.querySelector('.container') || frameDoc?.body;
+    const { default: html2pdf } = await import('html2pdf.js');
+
+    await html2pdf()
+      .set({
+        margin: 0,
+        filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+        },
+        jsPDF: {
+          unit: 'mm',
+          format: 'a4',
+          orientation: 'portrait',
+        },
+      })
+      .from(source)
+      .save();
+  } finally {
+    frame.remove();
+  }
+}
+
 function calculateTotals(form) {
   const subtotal = form.items.reduce((sum, item) => sum + (Number(item.qty) || 0) * (Number(item.price) || 0), 0);
   const gst = form.gst_enabled ? subtotal * 0.18 : 0;
@@ -390,8 +440,9 @@ export default function App() {
       setIsLoadingPreview(true);
       setToast('⏳ Generating PDF...');
       const iOS = isIOS();
+      const templateId = normalizeTemplateId(invoice.template_id || invoice.templateId || selectedTemplate);
       
-      if (normalizeTemplateId(invoice.template_id || invoice.templateId) === 'letter_pad') {
+      if (templateId === 'letter_pad') {
         // call template/pdf endpoint
         const context = {
           company_name: invoice.company_name || BUSINESS_INFO.company_name,
@@ -417,8 +468,40 @@ export default function App() {
         return;
       }
 
+      if (templateId === 'akhar_classic') {
+        const context = {
+          company_name: invoice.company_name || BUSINESS_INFO.company_name,
+          company_tagline: invoice.company_tagline || BUSINESS_INFO.company_tagline,
+          company_address: invoice.company_address || BUSINESS_INFO.company_address,
+          company_contact: invoice.company_contact || BUSINESS_INFO.company_contact,
+          customer_name: invoice.customer_name || invoice.clientName || '',
+          customer_address: invoice.customer_address || invoice.clientAddress || '',
+          bill_date: invoice.bill_date || invoice.date || '',
+          bill_no: invoice.bill_no || invoice.number || '',
+          pan_no: invoice.pan_no || BUSINESS_INFO.pan_no,
+          items: (invoice.items || []).map((it, idx) => ({
+            no: it.no || idx + 1,
+            description: it.description || it.desc || '',
+            qty: Number(it.qty) || 0,
+            rate: Number(it.rate || it.price) || 0,
+            amount: (Number(it.qty) || 0) * (Number(it.rate || it.price) || 0),
+          })),
+          subtotal: invoice.subtotal || invoice.subTotal || 0,
+          gst_enabled: invoice.gst_enabled || false,
+          gst_amount: invoice.gst_amount || 0,
+          total: invoice.total || invoice.grand || 0,
+          total_words: invoice.total_words || invoice.total_words || '',
+          notes: invoice.notes || '',
+          language: invoice.language || 'auto',
+        };
+
+        setToast('⏳ Creating PDF...');
+        await downloadTemplatePdfInBrowser('akhar_classic', context, `bill_${invoice.number || 'invoice'}.pdf`);
+        setToast('✅ PDF downloaded');
+        return;
+      }
+
       // For other templates, call template/pdf so the correct template is used
-      const templateId = normalizeTemplateId(invoice.template_id || invoice.templateId || selectedTemplate);
       const context = {
         company_name: invoice.company_name || BUSINESS_INFO.company_name,
         company_tagline: invoice.company_tagline || BUSINESS_INFO.company_tagline,

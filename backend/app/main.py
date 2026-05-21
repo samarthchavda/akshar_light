@@ -7,6 +7,7 @@ import os
 import json
 from datetime import datetime
 from urllib import request as urlrequest, error as urlerror
+from functools import lru_cache
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -38,6 +39,14 @@ env = Environment(
     loader=FileSystemLoader(str(TEMPLATE_DIR)),
     autoescape=select_autoescape(["html", "xml"]),
 )
+
+
+@lru_cache(maxsize=1)
+def get_font_data_url() -> str | None:
+    font_path = TEMPLATE_DIR / "fonts" / "NotoSansGujarati-Regular.ttf"
+    if not font_path.exists():
+        return None
+    return "data:font/ttf;base64," + base64.b64encode(font_path.read_bytes()).decode()
 
 
 class Item(BaseModel):
@@ -381,11 +390,6 @@ def render_invoice_html(payload: InvoiceRequest) -> str:
     final_total_words = (payload.total_words or "").strip() or amount_to_words_i18n(final_total, payload)
     
     # embed font as base64 if available so blob previews render Gujarati correctly
-    font_path = TEMPLATE_DIR / "fonts" / "NotoSansGujarati-Regular.ttf"
-    font_data_url = None
-    if font_path.exists():
-        font_data_url = "data:font/ttf;base64," + base64.b64encode(font_path.read_bytes()).decode()
-    
     return template.render(
         company_name=payload.company_name,
         company_tagline=payload.company_tagline,
@@ -404,7 +408,7 @@ def render_invoice_html(payload: InvoiceRequest) -> str:
         total=final_total,
         total_words=final_total_words,
         notes=payload.notes or "",
-        font_data_url=font_data_url,
+        font_data_url=None,
         lang=(payload.language or 'en'),
     )
 
@@ -430,11 +434,6 @@ def render_invoice_template_html(payload: InvoiceRequest, template_id: str = "ak
     final_total_words = (payload.total_words or "").strip() or amount_to_words_i18n(final_total, payload)
     
     # Embed font as base64
-    font_path = TEMPLATE_DIR / "fonts" / "NotoSansGujarati-Regular.ttf"
-    font_data_url = None
-    if font_path.exists():
-        font_data_url = "data:font/ttf;base64," + base64.b64encode(font_path.read_bytes()).decode()
-    
     return template.render(
         company_name=payload.company_name,
         company_tagline=payload.company_tagline,
@@ -453,7 +452,7 @@ def render_invoice_template_html(payload: InvoiceRequest, template_id: str = "ak
         total=final_total,
         total_words=final_total_words,
         notes=payload.notes or "",
-        font_data_url=font_data_url,
+        font_data_url=None,
         lang=(payload.language or 'en'),
     )
 
@@ -759,12 +758,6 @@ def invoice_pdf(payload: InvoiceRequest) -> Response:
 @app.post("/api/template/render", response_class=HTMLResponse)
 def template_render(req: TemplateRenderRequest = Body(...)) -> str:
     try:
-        # prepare font data url
-        font_path = TEMPLATE_DIR / "fonts" / "NotoSansGujarati-Regular.ttf"
-        font_data_url = None
-        if font_path.exists():
-            font_data_url = "data:font/ttf;base64," + base64.b64encode(font_path.read_bytes()).decode()
-
         context = dict(req.context or {})
         # provide defaults for common fields
         context.setdefault('company_name', 'Sanjay Dharamshibhai Chavda')
@@ -773,7 +766,7 @@ def template_render(req: TemplateRenderRequest = Body(...)) -> str:
         context.setdefault('recipient_name', '')
         context.setdefault('lines', [])
         context.setdefault('thanks_text', 'Thanks,\nSanjay Chavda')
-        context['font_data_url'] = font_data_url
+        context['font_data_url'] = get_font_data_url()
         context['lang'] = context.get('lang') or 'gu' if contains_gujarati(context.get('recipient_name','') + '\n' + '\n'.join([str(x) for x in context.get('lines',[])])) else 'en'
 
         html = render_template_by_id(req.template_id, context)
@@ -785,11 +778,6 @@ def template_render(req: TemplateRenderRequest = Body(...)) -> str:
 @app.post("/api/template/pdf")
 def template_pdf(req: TemplateRenderRequest = Body(...)) -> Response:
     try:
-        font_path = TEMPLATE_DIR / "fonts" / "NotoSansGujarati-Regular.ttf"
-        font_data_url = None
-        if font_path.exists():
-            font_data_url = "data:font/ttf;base64," + base64.b64encode(font_path.read_bytes()).decode()
-
         context = dict(req.context or {})
         context.setdefault('company_name', 'Sanjay Dharamshibhai Chavda')
         context.setdefault('company_tagline', 'ALL TYPE OF ELECTRIK WORK')
@@ -797,7 +785,7 @@ def template_pdf(req: TemplateRenderRequest = Body(...)) -> Response:
         context.setdefault('recipient_name', '')
         context.setdefault('lines', [])
         context.setdefault('thanks_text', 'Thanks,\nSanjay Chavda')
-        context['font_data_url'] = font_data_url
+        context['font_data_url'] = None
         context['lang'] = context.get('lang') or 'gu' if contains_gujarati(context.get('recipient_name', '') + '\n' + '\n'.join([str(x) for x in context.get('lines', [])])) else 'en'
 
         html = render_template_by_id(req.template_id, context)
