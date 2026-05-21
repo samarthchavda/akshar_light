@@ -455,18 +455,29 @@ def render_invoice_template_html(payload: InvoiceRequest, template_id: str = "ak
 
 ALLOWED_TEMPLATES = {
     "akhar_classic": "bill_template.html",
+    "bill_template": "bill_template.html",
+    "classic": "bill_template.html",
     "letter_pad": "letter_pad_demo.html",
     "akhar_invoice": "invoice_template.html",
+    "invoice_template": "invoice_template.html",
+    "invoice": "invoice_template.html",
 }
 
 
+def normalize_template_id(template_id: str | None) -> str:
+    value = (template_id or "").strip()
+    if not value:
+        return ""
+    return value.lower()
+
+
 def render_template_by_id(template_id: str, context: dict) -> str:
-    filename = ALLOWED_TEMPLATES.get(template_id)
+    filename = ALLOWED_TEMPLATES.get(normalize_template_id(template_id))
     if not filename:
         raise ValueError("Unknown template")
     
     # Special handling for invoice template with items
-    if template_id == "akhar_invoice" and "items" in context:
+    if normalize_template_id(template_id) == "akhar_invoice" and "items" in context:
         # Create an InvoiceRequest object from context for processing
         invoice_data = {
             "company_name": context.get("company_name", "Sanjay Dharamshibhai Chavda"),

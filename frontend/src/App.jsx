@@ -4,6 +4,15 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 const TEMPLATE_KEY = 'akhar_selected_template';
 
+const TEMPLATE_ALIASES = {
+  bill_template: 'akhar_classic',
+  classic: 'akhar_classic',
+  invoice_template: 'akhar_invoice',
+  invoice: 'akhar_invoice',
+};
+
+const normalizeTemplateId = (value) => TEMPLATE_ALIASES[String(value || '').trim()] || String(value || '').trim();
+
 const TEMPLATES = [
   {
     id: 'akhar_classic',
@@ -60,6 +69,10 @@ function readJSON(key, fallback) {
   } catch {
     return fallback;
   }
+}
+
+function showPopup(message) {
+  window.alert(message);
 }
 
 // API calls for authentication
@@ -147,7 +160,7 @@ async function fetchTemplateHtmlById(templateId, context) {
   const response = await fetch(`${API_BASE_URL}/api/template/render`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ template_id: templateId, context }),
+    body: JSON.stringify({ template_id: normalizeTemplateId(templateId), context }),
   });
   if (!response.ok) {
     const txt = await response.text();
@@ -300,7 +313,7 @@ export default function App() {
       setToast('⏳ Loading preview...');
       
       // special-case letter-pad template rendering via template endpoint
-      if (invoice.template_id === 'letter_pad') {
+      if (normalizeTemplateId(invoice.template_id) === 'letter_pad') {
         const context = {
           company_name: BUSINESS_INFO.company_name,
           company_tagline: invoice.company_tagline,
@@ -320,7 +333,7 @@ export default function App() {
       }
 
       // For other templates, render via template render endpoint so selected template is used
-      const templateId = invoice.template_id || invoice.templateId || selectedTemplate;
+      const templateId = normalizeTemplateId(invoice.template_id || invoice.templateId || selectedTemplate);
       const context = {
         company_name: invoice.company_name || BUSINESS_INFO.company_name,
         company_tagline: invoice.company_tagline || BUSINESS_INFO.company_tagline,
@@ -355,7 +368,9 @@ export default function App() {
       setPreviewKind(kind);
       setToast('✅ Preview loaded');
     } catch (error) {
-      setToast(`Preview failed: ${error.message}`);
+      const message = `Preview failed: ${error.message || 'Try again'}`;
+      setToast('');
+      showPopup(message);
     } finally {
       setIsLoadingPreview(false);
     }
@@ -376,7 +391,7 @@ export default function App() {
       setToast('⏳ Generating PDF...');
       const iOS = isIOS();
       
-      if (invoice.template_id === 'letter_pad' || invoice.templateId === 'letter_pad') {
+      if (normalizeTemplateId(invoice.template_id || invoice.templateId) === 'letter_pad') {
         // call template/pdf endpoint
         const context = {
           company_name: invoice.company_name || BUSINESS_INFO.company_name,
@@ -403,7 +418,7 @@ export default function App() {
       }
 
       // For other templates, call template/pdf so the correct template is used
-      const templateId = invoice.template_id || invoice.templateId || selectedTemplate;
+      const templateId = normalizeTemplateId(invoice.template_id || invoice.templateId || selectedTemplate);
       const context = {
         company_name: invoice.company_name || BUSINESS_INFO.company_name,
         company_tagline: invoice.company_tagline || BUSINESS_INFO.company_tagline,
@@ -444,7 +459,9 @@ export default function App() {
       triggerFileDownload(blob, `bill_${invoice.number || 'invoice'}.pdf`);
       setToast(iOS ? '📱 PDF opened - Tap Share to save' : '✅ PDF downloaded');
     } catch (error) {
-      setToast(`PDF download failed: ${error.message || 'Try again'}`);
+      const message = `PDF download failed: ${error.message || 'Try again'}`;
+      setToast('');
+      showPopup(message);
     } finally {
       setIsLoadingPreview(false);
     }
@@ -742,7 +759,7 @@ export default function App() {
       total: sub + gst,
       total_words: '',
       notes: invoice.notes || '',
-      template_id: invoice.templateId || invoice.template_id || selectedTemplate,
+      template_id: normalizeTemplateId(invoice.templateId || invoice.template_id || selectedTemplate),
     };
   };
 
