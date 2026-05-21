@@ -173,24 +173,29 @@ GUJ_TENS = [
 
 app = FastAPI(title="Akhar Light Billing API")
 
-# Get allowed origins from environment or use defaults
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+# Get allowed origins from environment or use safe defaults
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://akshar-light.vercel.app")
+configured_origins = os.getenv("ALLOWED_ORIGINS", "")
 allowed_origins = [
+    origin.strip()
+    for origin in configured_origins.split(",")
+    if origin.strip()
+] if configured_origins else [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "https://akshar-light.vercel.app",
     FRONTEND_URL,
 ]
-
-# Add Railway frontend URL pattern
-if "railway.app" in FRONTEND_URL:
-    allowed_origins.append(FRONTEND_URL)
+allowed_origins = list(dict.fromkeys(allowed_origins))
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for Railway deployment
-    allow_credentials=True,
+    allow_origins=allowed_origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
 )
 
 

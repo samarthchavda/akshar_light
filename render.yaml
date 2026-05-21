@@ -8,6 +8,10 @@ services:
     envVars:
       - key: MONGODB_URL
         value: mongodb+srv://StudyPoint:Cb3oog9A97jZO6cH@cluster0.whyvvvy.mongodb.net/akshar_light?retryWrites=true&w=majority&appName=Cluster0
+      - key: ALLOWED_ORIGINS
+        value: https://akshar-light.vercel.app,http://localhost:5173,http://127.0.0.1:5173
+      - key: FRONTEND_URL
+        value: https://akshar-light.vercel.app
       - key: PYTHON_VERSION
         value: 3.11.0
       - key: PORT
