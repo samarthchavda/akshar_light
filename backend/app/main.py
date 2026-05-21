@@ -364,7 +364,7 @@ def amount_to_words_i18n(amount: float, payload: InvoiceRequest) -> str:
 def render_invoice_html(payload: InvoiceRequest) -> str:
     template = env.get_template("bill_template.html")
     items, total = compute_items(payload)
-    empty_rows = max(0, 20 - len(items))
+    empty_rows = max(0, 26 - len(items))
     
     # Calculate GST and final total first
     gst_amount = payload.gst_amount or 0
@@ -409,9 +409,54 @@ def render_invoice_pdf(payload: InvoiceRequest) -> bytes:
     return HTML(string=html, base_url=str(TEMPLATE_DIR)).write_pdf()
 
 
+def render_invoice_template_html(payload: InvoiceRequest, template_id: str = "akhar_invoice") -> str:
+    """Render invoice-based templates with full invoice processing (items, GST, etc.)"""
+    template = env.get_template(ALLOWED_TEMPLATES.get(template_id, "invoice_template.html"))
+    items, total = compute_items(payload)
+    empty_rows = max(0, 26 - len(items))
+    
+    # Calculate GST and final total
+    gst_amount = payload.gst_amount or 0
+    gst_enabled = payload.gst_enabled or False
+    subtotal = payload.subtotal or total
+    final_total = total if not gst_enabled else (subtotal + gst_amount)
+    
+    # Calculate total words using final_total
+    final_total_words = (payload.total_words or "").strip() or amount_to_words_i18n(final_total, payload)
+    
+    # Embed font as base64
+    font_path = TEMPLATE_DIR / "fonts" / "NotoSansGujarati-Regular.ttf"
+    font_data_url = None
+    if font_path.exists():
+        font_data_url = "data:font/ttf;base64," + base64.b64encode(font_path.read_bytes()).decode()
+    
+    return template.render(
+        company_name=payload.company_name,
+        company_tagline=payload.company_tagline,
+        company_address=payload.company_address,
+        company_contact=payload.company_contact,
+        customer_name=payload.customer_name,
+        customer_address=payload.customer_address,
+        bill_date=payload.bill_date,
+        bill_no=payload.bill_no,
+        pan_no=payload.pan_no,
+        items=items,
+        empty_rows=empty_rows,
+        subtotal=subtotal,
+        gst_enabled=gst_enabled,
+        gst_amount=gst_amount,
+        total=final_total,
+        total_words=final_total_words,
+        notes=payload.notes or "",
+        font_data_url=font_data_url,
+        lang=(payload.language or 'en'),
+    )
+
+
 ALLOWED_TEMPLATES = {
     "akhar_classic": "bill_template.html",
     "letter_pad": "letter_pad_demo.html",
+    "akhar_invoice": "invoice_template.html",
 }
 
 
@@ -419,6 +464,60 @@ def render_template_by_id(template_id: str, context: dict) -> str:
     filename = ALLOWED_TEMPLATES.get(template_id)
     if not filename:
         raise ValueError("Unknown template")
+    
+    # Special handling for invoice template with items
+    if template_id == "akhar_invoice" and "items" in context:
+        # Create an InvoiceRequest object from context for processing
+        invoice_data = {
+            "company_name": context.get("company_name", "Sanjay Dharamshibhai Chavda"),
+            "company_tagline": context.get("company_tagline", "ALL TYPE OF ELECTRICAL WORKS"),
+            "company_address": context.get("company_address", '"KOMAL DEEP" Satya Narayan Nagar MainRoad, Near. BatukMaharaj Guaashala, Gandhigram, Rajkot.'),
+            "company_contact": context.get("company_contact", "Call. +91 92274 20287, Email. aksharlight@yahoo.in"),
+            "customer_name": context.get("customer_name", ""),
+            "customer_address": context.get("customer_address", ""),
+            "bill_date": context.get("bill_date", ""),
+            "bill_no": context.get("bill_no", ""),
+            "pan_no": context.get("pan_no", "AGGPC1817R"),
+            "items": context.get("items", []),
+            "subtotal": context.get("subtotal", 0),
+            "gst_enabled": context.get("gst_enabled", False),
+            "gst_amount": context.get("gst_amount", 0),
+            "total_words": context.get("total_words", ""),
+            "notes": context.get("notes", ""),
+            "language": context.get("language", "auto"),
+        }
+        payload = InvoiceRequest(**invoice_data)
+        return render_invoice_template_html(payload, template_id)
+    
+    # Normalize items if present so templates can rely on `item.amount` etc.
+    if "items" in context:
+        items = context.get("items") or []
+        normalized: list[dict[str, Any]] = []
+        total = 0.0
+        for index, it in enumerate(items, start=1):
+            qty = float(it.get("qty") or it.get("quantity") or 0)
+            rate = float(it.get("rate") or it.get("price") or 0)
+            amount = float(it.get("amount") if it.get("amount") is not None else qty * rate)
+            total += amount
+            normalized.append(
+                {
+                    "no": it.get("no") or index,
+                    "description": it.get("description") or it.get("desc") or "",
+                    "qty": qty,
+                    "rate": rate,
+                    "amount": amount,
+                }
+            )
+        context["items"] = normalized
+        context.setdefault("subtotal", context.get("subtotal", total))
+        context.setdefault("total", context.get("total", context.get("subtotal", total) + context.get("gst_amount", 0)))
+        # Provide empty_rows for templates that expect a fixed table height
+        try:
+            context["empty_rows"] = int(max(0, 26 - len(normalized)))
+        except Exception:
+            context["empty_rows"] = 0
+        context.setdefault("total_words", context.get("total_words", ""))
+
     template = env.get_template(filename)
     return template.render(**context)
 

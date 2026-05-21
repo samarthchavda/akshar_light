@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice</title>
+    {% if font_data_url %}
+    <style>
+        @font-face {
+            font-family: 'NotoGujarati';
+            src: url("{{ font_data_url }}") format('truetype');
+        }
+    </style>
+    {% endif %}
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            padding: 0;
+            margin: 0;
+        }
+        @page {
+            size: A4;
+            margin: 8mm;
+        }
+
+        /* Print-friendly adjustments */
+        @media print {
+            html, body { background: white !important; }
+            .container {
+                box-shadow: none !important;
+                margin: 0 !important;
+                width: 210mm !important;
+                min-height: 297mm !important;
+                padding: 8mm !important;
+            }
+            table, .summary-section { page-break-inside: avoid; }
+        }
+        .container {
+            width: 210mm;
+            min-height: 297mm;
+            margin: 0 auto; /* center */
+            max-width: 186mm; /* ensure symmetric page margins */
+            background-color: white;
+            /* slightly more right padding so content visually centers when printed */
+            padding: 14px 14px 8px 10px; /* top/right/bottom/left */
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #8B4545;
+            padding-bottom: 10px;
+        }
+        .header h1 {
+            color: #8B4545;
+            font-size: 20px;
+            margin-bottom: 3px;
+            letter-spacing: 1px;
+        }
+        .header p {
+            color: #8B4545;
+            font-size: 12px;
+            margin: 3px 0;
+        }
+        .header-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 12px;
+        }
+        .header-info {
+            display: flex;
+            justify-content: space-between;
+            position: relative;
+        }
+        .info-left {
+            width: 60%;
+        }
+        .info-right {
+            width: 40%;
+            text-align: right;
+        }
+        .info-right-box {
+            width: 220px;
+            border: 1px solid #8B4545;
+            padding: 6px 8px;
+            display: inline-block;
+            background: #fff;
+            position: static;
+            margin-left: auto;
+            z-index: 2;
+        }
+        .info-right-box .row {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 6px;
+            align-items: center;
+            font-size: 12px;
+        }
+        .info-right-box .row:last-child { margin-bottom: 0; }
+        .info-row {
+            display: flex;
+            margin: 3px 0;
+        }
+        .info-label {
+            font-weight: bold;
+            margin-right: 8px;
+            min-width: 50px;
+        }
+        .info-value {
+            flex: 1;
+            border-bottom: 1px dotted #999;
+            min-height: 18px;
+        }
+        .info-row-right {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            gap: 15px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 12px 0;
+            font-size: 12px;
+            flex: 1 1 auto; /* allow table to grow and push footer down */
+        }
+        thead {
+            background-color: #f9f9f9;
+            border-top: 2px solid #8B4545;
+            border-bottom: 2px solid #8B4545;
+        }
+        th {
+            padding: 6px 8px;
+            text-align: left;
+            color: #8B4545;
+            font-weight: bold;
+            border: 1px solid #ddd;
+            font-size: 11px;
+        }
+        td {
+            padding: 6px 6px;
+            border: 1px solid #ddd;
+            text-align: right;
+            height: 18px;
+            font-size: 11px;
+        }
+        td:first-child, td:nth-child(2) {
+            text-align: left;
+        }
+        tbody tr:hover {
+            background-color: #f9f9f9;
+        }
+        .summary-section {
+            display: flex;
+            margin-top: 15px;
+            gap: 30px;
+        }
+        .amount-words {
+            flex: 1;
+        }
+        .amount-words-label {
+            color: #8B4545;
+            font-weight: bold;
+            margin-bottom: 5px;
+            font-size: 11px;
+        }
+        .amount-words-text {
+            color: #8B4545;
+            font-size: 11px;
+            font-weight: 500;
+            padding: 8px;
+            background-color: #f9f9f9;
+            border-left: 3px solid #8B4545;
+            min-height: 30px;
+            display: flex;
+            align-items: center;
+        }
+        .totals {
+            flex: 0.5;
+        }
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid #ddd;
+            font-size: 11px;
+        }
+        .total-row.grand-total {
+            font-weight: bold;
+            font-size: 12px;
+            border: 2px solid #8B4545;
+            padding: 8px;
+            background-color: #f9f9f9;
+            color: #8B4545;
+            margin-top: 5px;
+        }
+        .total-label {
+            font-weight: bold;
+            color: #8B4545;
+        }
+        .total-amount {
+            text-align: right;
+            min-width: 80px;
+        }
+        .footer {
+            text-align: center;
+            margin-top: auto; /* stick footer to bottom */
+            padding-top: 8px;
+            border-top: 1px solid #ddd;
+            font-size: 10px;
+            color: #666;
+        }
+        .rupee-symbol {
+            margin-right: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>⊚ {{ company_name }}</h1>
+            <p>{{ company_tagline }}</p>
+            <p>{{ company_address }}</p>
+        </div>
+
+        <!-- Invoice Details -->
+        <div class="header-info">
+            <div class="info-left">
+                <div class="info-row">
+                    <span class="info-label">Name</span>
+                    <span class="info-value">{{ customer_name }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Add</span>
+                    <span class="info-value">{{ customer_address }}</span>
+                </div>
+            </div>
+            <div class="info-right">
+                <div class="info-right-box">
+                    <div class="row"><strong>Date :</strong><span>{{ bill_date }}</span></div>
+                    <div class="row"><strong>Bill No. :</strong><span>{{ bill_no }}</span></div>
+                    <div class="row"><strong>PAN No.</strong><span>{{ pan_no }}</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Items Table -->
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 5%;">No.</th>
+                    <th style="width: 48%;">Description</th>
+                    <th style="width: 14%;">Qty.U</th>
+                    <th style="width: 13%;">Rate per U.</th>
+                    <th style="width: 20%;">Amount Rs.</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr>
+                    <td>{{ item.no }}</td>
+                    <td>{{ item.description }}</td>
+                    <td>{{ "%.2f" | format(item.qty) }}</td>
+                    <td>{{ "%.2f" | format(item.rate) }}</td>
+                    <td>{{ "%.2f" | format(item.amount) }}</td>
+                </tr>
+                {% endfor %}
+                {% for _ in range(empty_rows) %}
+                <tr>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Summary Section -->
+        <div class="summary-section">
+            <!-- Amount in Words -->
+            <div class="amount-words">
+                <div class="amount-words-label">Amount in Words:</div>
+                <div class="amount-words-text">₹ {{ total_words }}</div>
+            </div>
+
+            <!-- Totals -->
+            <div class="totals">
+                <div class="total-row">
+                    <span class="total-label">Total</span>
+                    <span class="total-amount">₹ {{ "%.2f" | format(subtotal) }}</span>
+                </div>
+                {% if gst_enabled %}
+                <div class="total-row">
+                    <span class="total-label">GST @ 18%</span>
+                    <span class="total-amount">₹ {{ "%.2f" | format(gst_amount) }}</span>
+                </div>
+                {% endif %}
+                <div class="total-row grand-total">
+                    <span class="total-label">Grand Total</span>
+                    <span class="total-amount">₹ {{ "%.2f" | format(total) }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>{{ company_contact }}</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -15,6 +15,11 @@ const TEMPLATES = [
     name: 'Letter Pad',
     description: 'Blank letter-pad layout for correspondence (Sanjay Chavda).',
   },
+  {
+    id: 'akhar_invoice',
+    name: 'Akhar Invoice',
+    description: 'Professional invoice layout with brown header and itemized billing.',
+  },
 ];
 
 const BUSINESS_INFO = {
@@ -313,8 +318,37 @@ export default function App() {
         setToast('✅ Preview loaded');
         return;
       }
-      
-      const blob = kind === 'pdf' ? await fetchPdf(invoice) : new Blob([await fetchHtml(invoice)], { type: 'text/html' });
+
+      // For other templates, render via template render endpoint so selected template is used
+      const templateId = invoice.template_id || invoice.templateId || selectedTemplate;
+      const context = {
+        company_name: invoice.company_name || BUSINESS_INFO.company_name,
+        company_tagline: invoice.company_tagline || BUSINESS_INFO.company_tagline,
+        company_address: invoice.company_address || BUSINESS_INFO.company_address,
+        company_contact: invoice.company_contact || BUSINESS_INFO.company_contact,
+        customer_name: invoice.customer_name || invoice.clientName || '',
+        customer_address: invoice.customer_address || invoice.clientAddress || '',
+        bill_date: invoice.bill_date || invoice.date || '',
+        bill_no: invoice.bill_no || invoice.number || '',
+        pan_no: invoice.pan_no || BUSINESS_INFO.pan_no,
+        items: (invoice.items || []).map((it, idx) => ({
+          no: it.no || idx + 1,
+          description: it.description || it.desc || '',
+          qty: Number(it.qty) || 0,
+          rate: Number(it.rate || it.price) || 0,
+          amount: (Number(it.qty) || 0) * (Number(it.rate || it.price) || 0),
+        })),
+        subtotal: invoice.subtotal || invoice.subTotal || 0,
+        gst_enabled: invoice.gst_enabled || false,
+        gst_amount: invoice.gst_amount || 0,
+        total: invoice.total || invoice.grand || 0,
+        total_words: invoice.total_words || invoice.total_words || '',
+        notes: invoice.notes || '',
+        language: invoice.language || 'auto',
+      };
+
+      const html = await fetchTemplateHtmlById(templateId, context);
+      const blob = new Blob([html], { type: 'text/html' });
       const url = URL.createObjectURL(blob);
       setPreviewInvoice(invoice);
       setPreviewUrl(url);
@@ -368,7 +402,44 @@ export default function App() {
         return;
       }
 
-      const blob = await fetchPdf(invoice);
+      // For other templates, call template/pdf so the correct template is used
+      const templateId = invoice.template_id || invoice.templateId || selectedTemplate;
+      const context = {
+        company_name: invoice.company_name || BUSINESS_INFO.company_name,
+        company_tagline: invoice.company_tagline || BUSINESS_INFO.company_tagline,
+        company_address: invoice.company_address || BUSINESS_INFO.company_address,
+        company_contact: invoice.company_contact || BUSINESS_INFO.company_contact,
+        customer_name: invoice.customer_name || invoice.clientName || '',
+        customer_address: invoice.customer_address || invoice.clientAddress || '',
+        bill_date: invoice.bill_date || invoice.date || '',
+        bill_no: invoice.bill_no || invoice.number || '',
+        pan_no: invoice.pan_no || BUSINESS_INFO.pan_no,
+        items: (invoice.items || []).map((it, idx) => ({
+          no: it.no || idx + 1,
+          description: it.description || it.desc || '',
+          qty: Number(it.qty) || 0,
+          rate: Number(it.rate || it.price) || 0,
+          amount: (Number(it.qty) || 0) * (Number(it.rate || it.price) || 0),
+        })),
+        subtotal: invoice.subtotal || invoice.subTotal || 0,
+        gst_enabled: invoice.gst_enabled || false,
+        gst_amount: invoice.gst_amount || 0,
+        total: invoice.total || invoice.grand || 0,
+        total_words: invoice.total_words || invoice.total_words || '',
+        notes: invoice.notes || '',
+        language: invoice.language || 'auto',
+      };
+
+      const res = await fetch(`${API_BASE_URL}/api/template/pdf`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ template_id: templateId, context }),
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt || 'PDF generation failed');
+      }
+      const blob = await res.blob();
       setToast(iOS ? '⏳ Processing...' : '⏳ Starting download...');
       triggerFileDownload(blob, `bill_${invoice.number || 'invoice'}.pdf`);
       setToast(iOS ? '📱 PDF opened - Tap Share to save' : '✅ PDF downloaded');
