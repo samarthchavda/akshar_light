@@ -721,7 +721,7 @@ export default function App() {
       const password = document.getElementById('auth-pass').value;
 
       if (!email || !password) {
-        setToast('Enter email and password');
+        showPopup('Please enter email and password');
         return;
       }
 
@@ -743,7 +743,20 @@ export default function App() {
           navigate('/dashboard');
         }
       } catch (error) {
-        setToast(error.message);
+        let errorMsg = error.message || 'An error occurred';
+        
+        // Customize error messages for better UX
+        if (errorMsg.includes('Invalid email or password')) {
+          errorMsg = authMode === 'login' 
+            ? '❌ Invalid email or password. Please check and try again.' 
+            : errorMsg;
+        } else if (errorMsg.includes('Email already exists')) {
+          errorMsg = '❌ This email is already registered. Please login instead.';
+        } else if (errorMsg.includes('Failed to fetch')) {
+          errorMsg = '⚠️ Unable to connect to server. Please check your internet connection.';
+        }
+        
+        showPopup(errorMsg);
         setIsLoggingIn(false);
       }
     };
