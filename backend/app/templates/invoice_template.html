@@ -18,37 +18,49 @@
             padding: 0;
             box-sizing: border-box;
         }
+        html {
+            width: 100%;
+        }
         body {
             font-family: Arial, sans-serif;
             background-color: #f5f5f5;
-            padding: 0;
+            padding: 16px;
             margin: 0;
+            display: flex;
+            justify-content: center;
         }
         @page {
             size: A4;
-            margin: 8mm;
+            margin: 10mm;
         }
 
         /* Print-friendly adjustments */
         @media print {
-            html, body { background: white !important; }
+            html, body {
+                background: white !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                display: block;
+            }
             .container {
                 box-shadow: none !important;
                 margin: 0 !important;
-                width: 210mm !important;
-                min-height: 297mm !important;
-                padding: 8mm !important;
+                width: 100% !important;
+                max-width: none !important;
+                min-height: 277mm !important;
+                padding: 0 !important;
             }
             table, .summary-section { page-break-inside: avoid; }
+            thead { display: table-header-group; }
+            tfoot { display: table-footer-group; }
         }
         .container {
-            width: 210mm;
-            min-height: 297mm;
-            margin: 0 auto; /* center */
-            max-width: 186mm; /* ensure symmetric page margins */
+            width: 100%;
+            max-width: 190mm;
+            min-height: 277mm;
+            margin: 0 auto;
             background-color: white;
-            /* slightly more right padding so content visually centers when printed */
-            padding: 14px 14px 8px 10px; /* top/right/bottom/left */
+            padding: 10mm;
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
             display: flex;
             flex-direction: column;
@@ -107,19 +119,30 @@
             font-size: 12px;
         }
         .info-right-box .row:last-child { margin-bottom: 0; }
-        .info-row {
+        .customer-row {
             display: flex;
-            margin: 3px 0;
+            align-items: center;
+            margin-bottom: 12px;
+            font-size: 12px;
         }
-        .info-label {
-            font-weight: bold;
-            margin-right: 8px;
-            min-width: 50px;
+        .customer-label {
+            width: 80px;
+            font-weight: 600;
+            flex-shrink: 0;
+            white-space: nowrap;
         }
-        .info-value {
+        .customer-value {
             flex: 1;
-            border-bottom: 1px dotted #999;
-            min-height: 18px;
+            border-bottom: 1px solid #555;
+            padding: 0 5px 3px 5px;
+            min-height: 20px;
+            line-height: 1.4;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            text-decoration: none !important;
+            -webkit-text-decoration: none !important;
+            display: block;
         }
         .info-row-right {
             display: flex;
@@ -138,6 +161,7 @@
             background-color: #f9f9f9;
             border-top: 2px solid #8B4545;
             border-bottom: 2px solid #8B4545;
+            display: table-header-group;
         }
         th {
             padding: 6px 8px;
@@ -237,13 +261,13 @@
         <!-- Invoice Details -->
         <div class="header-info">
             <div class="info-left">
-                <div class="info-row">
-                    <span class="info-label">Name</span>
-                    <span class="info-value">{{ customer_name }}</span>
+                <div class="customer-row">
+                    <span class="customer-label">Name</span>
+                    <span class="customer-value">{{ customer_name }}</span>
                 </div>
-                <div class="info-row">
-                    <span class="info-label">Add</span>
-                    <span class="info-value">{{ customer_address }}</span>
+                <div class="customer-row">
+                    <span class="customer-label">Address</span>
+                    <span class="customer-value">{{ customer_address }}</span>
                 </div>
             </div>
             <div class="info-right">

@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
@@ -12,6 +13,17 @@ const TEMPLATE_ALIASES = {
 };
 
 const normalizeTemplateId = (value) => TEMPLATE_ALIASES[String(value || '').trim()] || String(value || '').trim();
+
+const routeViewFromPath = (pathname) => {
+  if (pathname === '/dashboard' || pathname === '/') return 'dashboard';
+  if (pathname === '/customers') return 'customers';
+  if (pathname.startsWith('/invoices/create')) return 'new';
+  if (pathname === '/invoices' || pathname.startsWith('/invoices/')) return 'list';
+  if (pathname.startsWith('/letters/create')) return 'new';
+  if (pathname === '/letters') return 'letters';
+  if (pathname === '/settings' || pathname === '/templates') return 'templates';
+  return 'dashboard';
+};
 
 const TEMPLATES = [
   {
@@ -295,11 +307,12 @@ function triggerFileDownload(blob, filename) {
 }
 
 export default function App() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [authMode, setAuthMode] = useState('login');
   const [user, setUser] = useState(null);
   const [invoices, setInvoices] = useState([]);
     const [letters, setLetters] = useState([]);
-  const [view, setView] = useState('dashboard');
   const [editingId, setEditingId] = useState(null);
   const [previewInvoice, setPreviewInvoice] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
@@ -314,6 +327,7 @@ export default function App() {
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const recognitionRef = useRef(null);
   const [selectedTemplate, setSelectedTemplate] = useState(localStorage.getItem(TEMPLATE_KEY) || TEMPLATES[0].id);
+  const view = routeViewFromPath(location.pathname);
 
   useEffect(() => {
     if (!previewUrl) return undefined;
@@ -337,6 +351,22 @@ export default function App() {
     localStorage.setItem(TEMPLATE_KEY, selectedTemplate);
   }, [selectedTemplate]);
 
+  useEffect(() => {
+    const match = location.pathname.match(/^\/invoices\/([^/]+)$/);
+    if (!match || match[1] === 'create') {
+      if (previewInvoice) {
+        setPreviewInvoice(null);
+        setPreviewUrl('');
+      }
+      return;
+    }
+
+    const invoice = invoices.find((entry) => String(entry.id) === String(match[1]));
+    if (invoice && (!previewInvoice || String(previewInvoice.id) !== String(invoice.id))) {
+      openPreview(buildInvoiceFromStored(invoice));
+    }
+  }, [location.pathname, invoices]);
+
   const users = {}; // No longer using localStorage for users
   const currentUserName = user ? user.split('@')[0] : ''; // Extract name from email
   const selectedTemplateMeta = TEMPLATES.find((template) => template.id === selectedTemplate) || TEMPLATES[0];
@@ -354,7 +384,7 @@ export default function App() {
     }
     setForm(base);
     setEditingId(null);
-    setView('new');
+    navigate(templateId === 'letter_pad' ? '/letters/create' : '/invoices/create');
   };
 
   const openPreview = async (invoice, kind = 'html') => {
@@ -609,7 +639,7 @@ export default function App() {
       
       setEditingId(null);
       setForm(blankForm(selectedTemplate === 'letter_pad' ? letters : invoices));
-      setView(selectedTemplate === 'letter_pad' ? 'letters' : 'list');
+      navigate(selectedTemplate === 'letter_pad' ? '/letters' : '/invoices');
       setToast(editingId ? 'Invoice updated' : 'Invoice saved');
     } catch (error) {
       setToast('Failed to save: ' + error.message);
@@ -655,7 +685,7 @@ export default function App() {
       gst_enabled: invoice.gst_enabled || false,
       nextId: (invoice.items?.length || 0) + 1,
     });
-    setView('new');
+    navigate('/invoices/create');
   };
 
   const editLetter = (letter) => {
@@ -671,7 +701,7 @@ export default function App() {
       notes: letter.notes || '',
       nextId: 1,
     });
-    setView('new');
+    navigate('/letters/create');
   };
 
   const renderAuth = () => {
@@ -692,14 +722,14 @@ export default function App() {
           // Login via API
           const result = await loginUser(email, password);
           setUser(email);
-          setView('dashboard');
+          navigate('/dashboard');
         } else {
           // Signup via API
           const name = document.getElementById('auth-name').value.trim() || email.split('@')[0];
           const result = await signupUser(name, email, password);
           setUser(email);
           setInvoices([]);
-          setView('dashboard');
+          navigate('/dashboard');
         }
       } catch (error) {
         setToast(error.message);
@@ -801,6 +831,62 @@ export default function App() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderCustomers = () => {
+    const customers = Array.from(
+      invoices.reduce((map, invoice) => {
+        const name = invoice.clientName || '';
+        if (!name) return map;
+        const existing = map.get(name) || { name, count: 0, total: 0, lastDate: '' };
+        existing.count += 1;
+        existing.total += Number(invoice.grand || 0);
+        existing.lastDate = invoice.date || existing.lastDate;
+        map.set(name, existing);
+        return map;
+      }, new Map()).values(),
+    ).sort((a, b) => a.name.localeCompare(b.name));
+
+    return (
+      <div>
+        <div className="panel-header">
+          <div>
+            <div className="panel-title">Customers</div>
+            <div className="panel-sub">Client records built from saved invoices.</div>
+          </div>
+        </div>
+        {customers.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-icon">👤</div>
+            <div className="empty-text">No customers yet</div>
+            <div className="empty-sub">Create invoices to see customers here</div>
+          </div>
+        ) : (
+          <div className="invoice-table-wrap">
+            <table className="invoice-table-view">
+              <thead>
+                <tr>
+                  <th>Customer</th>
+                  <th>Invoices</th>
+                  <th>Total</th>
+                  <th>Last Invoice</th>
+                </tr>
+              </thead>
+              <tbody>
+                {customers.map((customer) => (
+                  <tr key={customer.name}>
+                    <td className="inv-id-cell">{customer.name}</td>
+                    <td>{customer.count}</td>
+                    <td>{money(customer.total)}</td>
+                    <td>{customer.lastDate || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
@@ -1061,7 +1147,7 @@ export default function App() {
               <div className="panel-title">Letter Pad</div>
               <div className="panel-sub">Edit recipient, date and description then preview.</div>
             </div>
-            <button className="btn-secondary" onClick={() => setView('templates')}>Change Template</button>
+            <button className="btn-secondary" onClick={() => navigate('/settings')}>Change Template</button>
           </div>
 
           <div className="builder">
@@ -1087,7 +1173,7 @@ export default function App() {
             </div>
 
             <div className="builder-actions">
-              <button className="btn-secondary" onClick={() => setView('dashboard')} disabled={isLoadingPreview}>← Cancel</button>
+              <button className="btn-secondary" onClick={() => navigate('/letters')} disabled={isLoadingPreview}>← Cancel</button>
               <button className="btn-accent" onClick={handleVoiceToggle} disabled={isLoadingPreview}>{isRecording ? '● Recording...' : '🎤 Voice'}</button>
               <button className="btn-accent" style={{ background: 'var(--accent2)' }} onClick={handleAiFormat} disabled={isFormattingLetter || isLoadingPreview}>{isFormattingLetter ? 'AI Formatting...' : '✨ AI Format'}</button>
               <button className="btn-accent" onClick={handlePreview} disabled={isLoadingPreview}>{isLoadingPreview ? '⏳ Loading...' : '👁 Preview'}</button>
@@ -1111,7 +1197,7 @@ export default function App() {
             <div className="panel-title">{editingId ? 'Edit Invoice' : 'New Invoice'}</div>
             <div className="panel-sub">Template: {selectedTemplateMeta.name}</div>
           </div>
-          <button className="btn-secondary" onClick={() => setView('templates')}>Change Template</button>
+          <button className="btn-secondary" onClick={() => navigate('/settings')}>Change Template</button>
         </div>
 
         <div className="builder">
@@ -1200,7 +1286,7 @@ export default function App() {
           </div>
 
           <div className="builder-actions">
-            <button className="btn-secondary" onClick={() => setView('dashboard')} disabled={isLoadingPreview}>← Cancel</button>
+            <button className="btn-secondary" onClick={() => navigate('/invoices')} disabled={isLoadingPreview}>← Cancel</button>
             <button className="btn-accent" onClick={saveInvoice} disabled={isLoadingPreview}>{editingId ? '💾 Update Invoice' : '💾 Save Invoice'}</button>
             <button className="btn-accent" style={{ background: 'var(--success)' }} onClick={() => openPreview(buildInvoice(), 'html')} disabled={isLoadingPreview}>{isLoadingPreview ? '⏳ Loading...' : '👁 Preview'}</button>
           </div>
@@ -1213,7 +1299,7 @@ export default function App() {
     setUser(null);
     setInvoices([]);
     setLetters([]);
-    setView('dashboard');
+    navigate('/');
   };
 
   if (!user) return renderAuth();
@@ -1231,15 +1317,16 @@ export default function App() {
       <div className="content">
         <div className="sidebar">
           <div className="nav-section">Menu</div>
-          <button className={`nav-item ${view === 'dashboard' ? 'active' : ''}`} onClick={() => setView('dashboard')}><span className="nav-icon">⊞</span>Dashboard</button>
-          <button className={`nav-item ${view === 'templates' ? 'active' : ''}`} onClick={() => setView('templates')}><span className="nav-icon">◧</span>Templates</button>
-          <button className={`nav-item ${view === 'new' ? 'active' : ''}`} onClick={() => startNewInvoice()}><span className="nav-icon">✚</span>New Invoice</button>
-          <button className={`nav-item ${view === 'list' ? 'active' : ''}`} onClick={() => setView('list')}><span className="nav-icon">◩</span>All Invoices</button>
-          <button className={`nav-item ${view === 'letters' ? 'active' : ''}`} onClick={() => setView('letters')}><span className="nav-icon">✉</span>Letters</button>
+          <NavLink className={`nav-item ${view === 'dashboard' ? 'active' : ''}`} to="/dashboard"><span className="nav-icon">⊞</span>Dashboard</NavLink>
+          <NavLink className={`nav-item ${view === 'templates' ? 'active' : ''}`} to="/settings"><span className="nav-icon">◧</span>Templates</NavLink>
+          <NavLink className={`nav-item ${view === 'new' ? 'active' : ''}`} to="/invoices/create" onClick={() => startNewInvoice()}><span className="nav-icon">✚</span>New Invoice</NavLink>
+          <NavLink className={`nav-item ${view === 'list' ? 'active' : ''}`} to="/invoices"><span className="nav-icon">◩</span>All Invoices</NavLink>
+          <NavLink className={`nav-item ${view === 'letters' ? 'active' : ''}`} to="/letters"><span className="nav-icon">✉</span>Letters</NavLink>
         </div>
 
         <div className="panel">
           {view === 'dashboard' && renderDashboard()}
+          {view === 'customers' && renderCustomers()}
           {view === 'templates' && renderTemplates()}
           {view === 'new' && renderBuilder()}
           {view === 'list' && renderList()}
@@ -1299,7 +1386,7 @@ export default function App() {
 
             <div className="modal-body" style={{ flex: 1, overflow: 'auto', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', padding: '20px', background: '#1a1d25', position: 'relative' }}>
               <div className="pdf-actions-mobile">
-                <button className="pdf-action-btn close-btn" onClick={() => { setPreviewInvoice(null); setPreviewUrl(''); setView('list'); }} title="Close and go to invoices" disabled={isLoadingPreview}>✕</button>
+                <button className="pdf-action-btn close-btn" onClick={() => { setPreviewInvoice(null); setPreviewUrl(''); navigate('/invoices'); }} title="Close and go to invoices" disabled={isLoadingPreview}>✕</button>
                 <button className="pdf-action-btn download-btn" onClick={() => downloadPdf(buildInvoiceFromStored(previewInvoice))} title="Download PDF" disabled={isLoadingPreview} style={{ opacity: isLoadingPreview ? 0.6 : 1 }}>
                   {isLoadingPreview ? '⏳' : '⬇'}
                 </button>
@@ -1310,7 +1397,7 @@ export default function App() {
             </div>
 
             <div className="modal-footer" style={{ padding: '16px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: '10px', justifyContent: 'space-between', flexWrap: 'wrap' }}>
-              <button className="btn-secondary" onClick={() => { setPreviewInvoice(null); setPreviewUrl(''); setView('list'); }} disabled={isLoadingPreview}>← Close & Go to Invoices</button>
+              <button className="btn-secondary" onClick={() => { setPreviewInvoice(null); setPreviewUrl(''); navigate('/invoices'); }} disabled={isLoadingPreview}>← Close & Go to Invoices</button>
               <button 
                 className="btn-accent" 
                 style={{ background: 'var(--success)', flex: 1, minWidth: '150px', fontWeight: 600, padding: '10px 16px', opacity: isLoadingPreview ? 0.6 : 1, cursor: isLoadingPreview ? 'not-allowed' : 'pointer' }} 
