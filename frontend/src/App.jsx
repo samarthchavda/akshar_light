@@ -70,6 +70,16 @@ const blankForm = (invoices = []) => ({
 
 const money = (value) => `₹${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+const sanitizeFilename = (customerName) => {
+  if (!customerName || !customerName.trim()) return 'invoice';
+  return customerName
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/[^a-z0-9_\u0A80-\u0AFF]/gi, '')
+    .substring(0, 30);
+};
+
 function readJSON(key, fallback) {
   try {
     return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback));
@@ -488,7 +498,9 @@ export default function App() {
         }
         const blob = await res.blob();
         setToast(iOS ? '⏳ Processing...' : '⏳ Starting download...');
-        triggerFileDownload(blob, `letter_${invoice.number || 'letter'}.pdf`);
+        const customerName = invoice.customer_name || invoice.clientName || '';
+        const filename = customerName ? `${sanitizeFilename(customerName)}_letter.pdf` : `letter_${invoice.number || 'letter'}.pdf`;
+        triggerFileDownload(blob, filename);
         setToast(iOS ? '📱 PDF opened - Tap Share to save' : '✅ PDF downloaded');
         return;
       }
@@ -521,7 +533,9 @@ export default function App() {
         };
 
         setToast('⏳ Creating PDF...');
-        await downloadTemplatePdfInBrowser('akhar_classic', context, `bill_${invoice.number || 'invoice'}.pdf`);
+        const customerName = invoice.customer_name || invoice.clientName || '';
+        const filename = customerName ? `${sanitizeFilename(customerName)}_bill.pdf` : `bill_${invoice.number || 'invoice'}.pdf`;
+        await downloadTemplatePdfInBrowser('akhar_classic', context, filename);
         setToast('✅ PDF downloaded');
         return;
       }
@@ -564,7 +578,9 @@ export default function App() {
       }
       const blob = await res.blob();
       setToast(iOS ? '⏳ Processing...' : '⏳ Starting download...');
-      triggerFileDownload(blob, `bill_${invoice.number || 'invoice'}.pdf`);
+      const customerName = invoice.customer_name || invoice.clientName || '';
+      const filename = customerName ? `${sanitizeFilename(customerName)}_bill.pdf` : `bill_${invoice.number || 'invoice'}.pdf`;
+      triggerFileDownload(blob, filename);
       setToast(iOS ? '📱 PDF opened - Tap Share to save' : '✅ PDF downloaded');
     } catch (error) {
       const message = `PDF download failed: ${error.message || 'Try again'}`;
