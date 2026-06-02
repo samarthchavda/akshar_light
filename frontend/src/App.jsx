@@ -27,11 +27,6 @@ const routeViewFromPath = (pathname) => {
 
 const TEMPLATES = [
   {
-    id: 'akhar_classic',
-    name: 'Akhar Classic',
-    description: 'Original Akhar Light paper layout with red ruled structure.',
-  },
-  {
     id: 'letter_pad',
     name: 'Letter Pad',
     description: 'Blank letter-pad layout for correspondence (Sanjay Chavda).',

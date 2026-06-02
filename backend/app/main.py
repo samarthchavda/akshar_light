@@ -458,9 +458,6 @@ def render_invoice_template_html(payload: InvoiceRequest, template_id: str = "ak
 
 
 ALLOWED_TEMPLATES = {
-    "akhar_classic": "bill_template.html",
-    "bill_template": "bill_template.html",
-    "classic": "bill_template.html",
     "letter_pad": "letter_pad_demo.html",
     "akhar_invoice": "invoice_template.html",
     "invoice_template": "invoice_template.html",
